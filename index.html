@@ -32,6 +32,24 @@
             --transition: 0.2s ease;
         }
 
+        /* ☀️ 亮色主题变量覆盖 */
+        [data-theme="light"] {
+            --bg-base: #f5f3f0;
+            --bg-surface: #faf9f7;
+            --bg-elevated: #ffffff;
+            --bg-input: #f0ede8;
+            --border-color: #d4cfc4;
+            --text-primary: #1a1814;
+            --text-secondary: #5c5548;
+            --text-muted: #968c7a;
+            --accent: #6b4bc4;
+            --accent-dim: #8b6fd4;
+            --green: #2d8a5e;
+            --red: #c0392b;
+            --yellow: #b8860b;
+            --shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+
         body {
             background: var(--bg-base);
             color: var(--text-primary);
@@ -1457,6 +1475,7 @@
 
             <button class="icon-btn" onclick="showModal('📋 调用日志')" title="调用日志">📋</button>
             <button class="icon-btn" onclick="toggleChatPanel()" title="AI 助手">💬</button>
+            <button class="icon-btn" onclick="toggleTheme()" title="切换亮色/暗色主题" id="themeToggleBtn">🌙</button>
             <button class="icon-btn" onclick="showModal('⚙️ 全局设置')" title="设置">⚙️</button>
         </div>
     </nav>
@@ -1774,7 +1793,16 @@
         // ============================================================
         const BACKUP_KEY = 'lorebook_studio_backups';
         function getBackups() { try { return JSON.parse(localStorage.getItem(BACKUP_KEY) || '[]'); } catch (e) { return []; } }
-        function saveBackups(list) { try { localStorage.setItem(BACKUP_KEY, JSON.stringify(list.slice(0, 12))); } catch (e) {} }
+        function saveBackups(list) { try { localStorage.setItem(BACKUP_KEY, JSON.stringify(list.slice(0, 20))); } catch (e) {} }
+        // 🚀 自动快照定时器（每5分钟静默保存，防意外丢失）
+        let autoSnapshotTimer = null;
+        function startAutoSnapshot() {
+            if (autoSnapshotTimer) clearInterval(autoSnapshotTimer);
+            autoSnapshotTimer = setInterval(() => {
+                takeSnapshot('⏰ 自动备份');
+                console.log('📸 自动快照已保存 (' + new Date().toLocaleTimeString('zh-CN', {hour12: false}) + ')');
+            }, 5 * 60 * 1000); // 5 分钟
+        }
         function takeSnapshot(label) {
             try {
                 const snap = {
@@ -1847,6 +1875,26 @@
             closeModal();
         }
         function takeSnapshotNow() { takeSnapshot('手动保存'); showToast('已保存当前快照'); }
+
+        // ☀️🌙 主题切换
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'light' ? '' : 'light';
+            document.documentElement.setAttribute('data-theme', next || '');
+            const btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.textContent = next === 'light' ? '☀️' : '🌙';
+            try { localStorage.setItem('wb_theme', next || 'dark'); } catch (e) {}
+        }
+        function initTheme() {
+            try {
+                const saved = localStorage.getItem('wb_theme');
+                if (saved === 'light') {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    const btn = document.getElementById('themeToggleBtn');
+                    if (btn) btn.textContent = '☀️';
+                }
+            } catch (e) {}
+        }
 
         function renderDropdowns() {
             // 渲染 API 下拉
@@ -1992,13 +2040,29 @@
             updateChatModeBadge();
             renderChatSessions();
             renderChatMessages();
+
+            // 🚀 启动主题、自动快照与崩溃恢复
+            initTheme();
+            startAutoSnapshot();
+            // 崩溃恢复：检测上次是否异常退出（LS 有数据但时间戳较新 → 静默恢复）
+            try {
+                const lsRaw = localStorage.getItem(LS_KEY);
+                if (lsRaw && typeof localforage !== 'undefined') {
+                    const lsData = JSON.parse(lsRaw);
+                    const idbData = await localforage.getItem(IDB_KEY);
+                    if (lsData && lsData.lastModified && (!idbData || !idbData.lastModified || lsData.lastModified > idbData.lastModified + 3000)) {
+                        await localforage.setItem(IDB_KEY, lsData);
+                        console.log('🔄 检测到异常退出，已从 LocalStorage 恢复最新数据');
+                    }
+                }
+            } catch (e) {}
         });
 
         // ============================================================
         //  AI 网络请求与拉取模型函数
         // ============================================================
         // 带超时与重试的 fetch 封装（仅对超时/网络错误重试）
-        async function fetchWithRetry(url, options, { timeoutMs = 60000, retries = 1 } = {}) {
+        async function fetchWithRetry(url, options, { timeoutMs = 60000, retries = 2, backoffMs = 1500 } = {}) {
             let lastErr;
             for (let attempt = 0; attempt <= retries; attempt++) {
                 const controller = new AbortController();
@@ -2006,14 +2070,21 @@
                 try {
                     const res = await fetch(url, { ...options, signal: controller.signal });
                     clearTimeout(timer);
+                    // 🚀 HTTP 429（限流）或 5xx（服务端故障）：指数退避重试
+                    if ((res.status === 429 || res.status >= 500) && attempt < retries) {
+                        const delay = backoffMs * Math.pow(2, attempt);
+                        showToast(`服务器繁忙 (${res.status})，${(delay/1000).toFixed(1)}s 后自动重试...`);
+                        await new Promise(r => setTimeout(r, delay));
+                        continue;
+                    }
                     return res;
                 } catch (err) {
                     clearTimeout(timer);
                     lastErr = err;
                     const retriable = err.name === 'AbortError' || err instanceof TypeError;
                     if (attempt < retries && retriable) {
-                        showToast(`网络请求失败/超时，正在重试 (${attempt + 1}/${retries})...`);
-                        await new Promise(r => setTimeout(r, 800));
+                        showToast(`网络波动，正在重试 (${attempt + 1}/${retries})...`);
+                        await new Promise(r => setTimeout(r, 1200));
                         continue;
                     }
                     throw lastErr;
@@ -2229,6 +2300,8 @@ ${extraContext.trim()}`;
                 let totalTokens = 0;
                 if (config.stream) {
                     // 【流式处理模式】逐块读取 SSE 数据并拼接为完整文本
+                    // 🚀 防御：部分代理/防火墙会返回空 body（如 200 但 body=null），防止 getReader() 崩溃
+                    if (!response.body) throw new Error('API 返回了空响应体，可能是代理或防火墙拦截了流式数据。请尝试关闭流式传输或检查网络。');
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder('utf-8');
                     let buffer = '';
@@ -4907,6 +4980,8 @@ ${extraContext.trim()}`;
         // 快捷键绑定
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 's') { e.preventDefault(); handleSaveWorkspace(); }
+            if (e.ctrlKey && e.key === 'n') { e.preventDefault(); showModal('新建条目'); }
+            // Ctrl+Enter 发送聊天由 handleChatKeyDown 处理（textarea 内）
         });
 
     </script>
