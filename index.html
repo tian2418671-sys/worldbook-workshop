@@ -1472,16 +1472,16 @@
         <div class="navbar-right">
             <select class="select-styled" id="apiSelect" onchange="switchApi(this.value)" title="选择 API 配置"
                 aria-label="选择 API 配置" style="max-width:140px;"></select>
-            <button class="btn btn-sm" onclick="showModal('API 配置管理')" title="API 管理">⚙️</button>
+            <button class="btn btn-sm" onclick="showModal('API 配置管理')" title="API 管理" aria-label="API 配置管理">⚙️</button>
 
             <select class="select-styled" id="promptSelect" onchange="switchPrompt(this.value)" title="选择提示词预设"
                 aria-label="选择提示词预设" style="max-width:130px;"></select>
-            <button class="btn btn-sm" onclick="showModal('提示词管理')" title="提示词管理">⚙️</button>
+            <button class="btn btn-sm" onclick="showModal('提示词管理')" title="提示词管理" aria-label="提示词管理">⚙️</button>
 
-            <button class="icon-btn" onclick="showModal('📋 调用日志')" title="调用日志">📋</button>
-            <button class="icon-btn" onclick="toggleChatPanel()" title="AI 助手">💬</button>
-            <button class="icon-btn" onclick="toggleTheme()" title="切换亮色/暗色主题" id="themeToggleBtn">🌙</button>
-            <button class="icon-btn" onclick="showModal('⚙️ 全局设置')" title="设置">⚙️</button>
+            <button class="icon-btn" onclick="showModal('📋 调用日志')" title="调用日志" aria-label="调用日志">📋</button>
+            <button class="icon-btn" onclick="toggleChatPanel()" title="AI 助手" aria-label="AI 助手">💬</button>
+            <button class="icon-btn" onclick="toggleTheme()" title="切换亮色/暗色主题" aria-label="切换亮色/暗色主题" id="themeToggleBtn">🌙</button>
+            <button class="icon-btn" onclick="showModal('⚙️ 全局设置')" title="设置" aria-label="全局设置">⚙️</button>
         </div>
     </nav>
 
@@ -1535,9 +1535,9 @@
             <div class="toolbar">
                 <button class="btn btn-primary btn-sm" onclick="handleNewEntry()" title="新建条目">➕ 新建</button>
                 <button class="btn btn-sm" onclick="openGraph()" title="开启星图：可视化当前世界书条目关联" style="background: var(--bg-elevated); border: 1px solid var(--accent);">🌐 开启星图</button>
-                <button class="icon-btn" onclick="showModal('🔍 触发预览')" title="触发扫描预览">🔍</button>
-                <button class="icon-btn" onclick="showModal('✨ 批量生成')" title="批量生成">✨</button>
-                <button class="icon-btn" onclick="showModal('🧠 智能调优')" title="全局调优">🧠</button>
+                <button class="icon-btn" onclick="showModal('🔍 触发预览')" title="触发扫描预览" aria-label="触发扫描预览">🔍</button>
+                <button class="icon-btn" onclick="showModal('✨ 批量生成')" title="批量生成" aria-label="批量生成">✨</button>
+                <button class="icon-btn" onclick="showModal('🧠 智能调优')" title="全局调优" aria-label="全局调优">🧠</button>
             </div>
             <div id="entryContainer" style="display:flex;flex-direction:column;gap:4px;"></div>
         </aside>
@@ -1554,7 +1554,7 @@
                 <span class="chat-header-title">设定交流助手</span>
                 <span class="chat-header-badge" id="chatStatusBadge">读写</span>
             </div>
-            <button class="icon-btn" onclick="toggleChatPanel()" title="关闭">✕</button>
+            <button class="icon-btn" onclick="toggleChatPanel()" title="关闭" aria-label="关闭聊天面板">✕</button>
         </div>
         <div class="chat-toolbar">
             <button class="btn btn-primary btn-sm" onclick="createNewChat()" title="创建新对话">＋ 新对话</button>
@@ -3044,8 +3044,8 @@ ${extraContext.trim()}`;
                         <div class="meta">${Object.keys(wb.entries).length} 条目</div>
                     </div>
                     <div class="actions">
-                        <button onclick="event.stopPropagation();renameWorldbook(${wb.uid})" title="重命名世界书">✏️</button>
-                        <button onclick="event.stopPropagation();if(confirm('删除此世界书？'))deleteWorldbook(${wb.uid})" title="删除世界书">🗑️</button>
+                        <button onclick="event.stopPropagation();renameWorldbook(${wb.uid})" title="重命名世界书" aria-label="重命名世界书">✏️</button>
+                        <button onclick="event.stopPropagation();if(confirm('删除此世界书？'))deleteWorldbook(${wb.uid})" title="删除世界书" aria-label="删除世界书">🗑️</button>
                     </div>
                 </div>
             `).join('');
@@ -3481,7 +3481,7 @@ ${extraContext.trim()}`;
                     <div class="chat-history-item${active}" onclick="switchChat(${c.id})">
                         <span class="chat-history-title">${escHtml(c.title || '新对话')} <span class="chat-history-count">(${c.messages.length})</span></span>
                         <span class="chat-history-time">${time}</span>
-                        <button class="icon-btn" title="删除该对话" onclick="event.stopPropagation();deleteChat(${c.id})">🗑️</button>
+                        <button class="icon-btn" title="删除该对话" aria-label="删除该对话" onclick="event.stopPropagation();deleteChat(${c.id})">🗑️</button>
                     </div>
                 `;
             }).join('');
@@ -4162,7 +4162,7 @@ ${extraContext.trim()}`;
                 ${editingBlocks.map((b, i) => `
                     <div style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;margin-bottom:6px;">
                         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                            <button class="btn btn-sm" type="button" onclick="togglePromptBlockExpand(${i}, this)" title="展开/收起内容" style="flex:0 0 auto; padding:0 6px; line-height:1;">▸</button>
+                            <button class="btn btn-sm" type="button" onclick="togglePromptBlockExpand(${i}, this)" title="展开/收起内容" aria-label="展开/收起内容" style="flex:0 0 auto; padding:0 6px; line-height:1;">▸</button>
                             <label style="display:flex; align-items:center; gap:4px; font-size:12px; color:var(--text-secondary); cursor:pointer; white-space:nowrap;">
                                 <input type="checkbox" style="width:auto;" ${b.enabled ? 'checked' : ''} onchange="updatePromptBlock(${i}, 'enabled', this.checked)" />
                                 启用
@@ -4173,9 +4173,9 @@ ${extraContext.trim()}`;
                             </select>
                             <input value="${escAttr(b.name)}" placeholder="区块名称" style="flex:1; min-width:90px; background:var(--bg-input);border:1px solid var(--border-color);border-radius:4px;padding:3px 6px;font-size:12px;color:var(--text-primary);" onchange="updatePromptBlock(${i}, 'name', this.value)" />
                             <span style="display:flex; gap:2px;">
-                                <button class="btn btn-sm" type="button" onclick="movePromptBlock(${i}, -1)" title="上移">↑</button>
-                                <button class="btn btn-sm" type="button" onclick="movePromptBlock(${i}, 1)" title="下移">↓</button>
-                                <button class="btn btn-sm btn-danger" type="button" onclick="removePromptBlock(${i})" title="删除区块">🗑️</button>
+                                <button class="btn btn-sm" type="button" onclick="movePromptBlock(${i}, -1)" title="上移" aria-label="上移">↑</button>
+                                <button class="btn btn-sm" type="button" onclick="movePromptBlock(${i}, 1)" title="下移" aria-label="下移">↓</button>
+                                <button class="btn btn-sm btn-danger" type="button" onclick="removePromptBlock(${i})" title="删除区块" aria-label="删除区块">🗑️</button>
                             </span>
                         </div>
                         <div class="block-body" data-block-body="${i}" style="display:none;">
@@ -4445,8 +4445,8 @@ ${extraContext.trim()}`;
                                     <strong>${apiConfigs[id].name}</strong> (${apiConfigs[id].model})
                                 </span>
                                 <span style="display:flex;gap:4px;flex-shrink:0;margin-left:6px;">
-                                    <button class="btn btn-sm" onclick="editApiConfig('${id}')" title="编辑此配置">✏️</button>
-                                    <button class="btn btn-sm btn-danger" onclick="if(confirm('删除？')){delete apiConfigs['${id}'];saveToLocal();renderAll();closeModal();showModal('API 配置管理');}">🗑️</button>
+                                    <button class="btn btn-sm" onclick="editApiConfig('${id}')" title="编辑此配置" aria-label="编辑此配置">✏️</button>
+                                    <button class="btn btn-sm btn-danger" onclick="if(confirm('删除？')){delete apiConfigs['${id}'];saveToLocal();renderAll();closeModal();showModal('API 配置管理');}" title="删除此配置" aria-label="删除此配置">🗑️</button>
                                 </span>
                             </div>
                         `).join('')}
@@ -4604,7 +4604,7 @@ ${extraContext.trim()}`;
                             <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-elevated);padding:6px 10px;border-radius:6px;margin-bottom:4px;">
                                 <span><strong>${promptPresets[id].name}</strong></span>
                                 <span style="display:flex; gap:4px;">
-                                    <button class="btn btn-sm" onclick="exportPromptPreset('${id}')" title="导出为 JSON 文件">📤</button>
+                                    <button class="btn btn-sm" onclick="exportPromptPreset('${id}')" title="导出为 JSON 文件" aria-label="导出为 JSON 文件">📤</button>
                                     <button class="btn btn-sm btn-danger" onclick="if(confirm('确定删除此预设吗？')){takeSnapshot('删除预设');delete promptPresets['${id}'];saveToLocal();renderDropdowns();closeModal();showModal('提示词管理');}">🗑️ 删除</button>
                                 </span>
                             </div>
