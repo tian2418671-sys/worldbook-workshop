@@ -4871,7 +4871,8 @@ ${extraContext.trim()}`;
         }
 
         function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); modalConfirmCallback = null; }
-        function handleModalConfirm() { }
+        // 兜底：与 showModal 内联赋值逻辑一致（正常流程中 showModal 会覆盖 onclick，此函数仅作初始兜底）
+        function handleModalConfirm() { if (modalConfirmCallback) modalConfirmCallback(); else closeModal(); }
 
         // ============================================================
         //  🕵️ 查看完整 AI 回复 & 隐藏对话信息
@@ -4973,7 +4974,7 @@ ${extraContext.trim()}`;
         // 快捷键绑定
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 's') { e.preventDefault(); handleSaveWorkspace(); }
-            if (e.ctrlKey && e.key === 'n') { e.preventDefault(); showModal('新建条目'); }
+            if (e.ctrlKey && e.key === 'n') { e.preventDefault(); handleNewEntry(); } // 🚀 修复：直接新建条目，避免 showModal 无分支的空模态框
             // Ctrl+Enter 发送聊天由 handleChatKeyDown 处理（textarea 内）
         });
 </script>
