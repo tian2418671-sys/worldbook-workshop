@@ -2302,55 +2302,61 @@ ${extraContext.trim()}`;
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder('utf-8');
                     let buffer = '';
+                    let finishReason = ''; // 记录服务端结束原因（length=因 max_tokens 截断）
+                    // 🚀 修复截断：单行 SSE data 解析器（循环内 + 流末 flush 共用）
+                    const processDataLine = (line) => {
+                        const trimmed = line.trim();
+                        if (!trimmed || !trimmed.startsWith('data:')) return;
+                        if (trimmed.includes('[DONE]')) return;
+                        try {
+                            const dataObj = JSON.parse(trimmed.replace('data:', '').trim());
+                            // 流式 Token 统计：部分接口在结尾 data 行（choices 为空数组）携带 usage
+                            if (dataObj.usage) {
+                                if (dataObj.usage.total_tokens) totalTokens = dataObj.usage.total_tokens;
+                                else if (typeof dataObj.usage.prompt_tokens === 'number' && typeof dataObj.usage.completion_tokens === 'number') {
+                                    totalTokens = dataObj.usage.prompt_tokens + dataObj.usage.completion_tokens;
+                                }
+                            }
+                            const ch0 = dataObj.choices && dataObj.choices[0] ? dataObj.choices[0] : {};
+                            if (ch0.finish_reason) finishReason = ch0.finish_reason;
+                            const delta = ch0.delta || {};
+                            // 1. 常规文本流：逐块拼接并触发回调（打字机效果，告别“死机等待”）
+                            const deltaContent = delta.content || '';
+                            if (deltaContent) {
+                                rawContent += deltaContent;
+                                if (onStreamChunk) onStreamChunk(rawContent, false);
+                            }
+                            // 2. 原生函数调用流 (Function Calling)：实时组装被切成碎片的参数 JSON
+                            if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
+                                delta.tool_calls.forEach(tc => {
+                                    const idx = tc.index !== undefined ? tc.index : 0;
+                                    if (!toolCallsAcc[idx]) toolCallsAcc[idx] = { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } };
+                                    if (tc.function && tc.function.name) toolCallsAcc[idx].function.name += tc.function.name;
+                                    if (tc.function && tc.function.arguments) {
+                                        toolCallsAcc[idx].function.arguments += tc.function.arguments;
+                                        // 触发 UI 提示正在调用函数（文本为空时显示动态装配动画）
+                                        if (onStreamChunk) onStreamChunk(rawContent, true);
+                                    }
+                                });
+                            }
+                        } catch (err) {
+                            console.warn('流式解析跳过无法解析的片段:', trimmed);
+                        }
+                    };
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) break;
                         buffer += decoder.decode(value, { stream: true });
-
                         // 按换行符切割，最后一段可能不完整留到下一轮
                         const lines = buffer.split('\n');
                         buffer = lines.pop() || '';
-                        for (const line of lines) {
-                            const trimmed = line.trim();
-                            if (!trimmed) continue;
-                            // 忽略流结束的标识符
-                            if (trimmed.includes('[DONE]')) continue;
-                            // 解析前缀为 "data: " 的标准 SSE 格式
-                            if (trimmed.startsWith('data:')) {
-                                try {
-                                    const dataObj = JSON.parse(trimmed.replace('data:', '').trim());
-                                    // 🚀 流式 Token 统计：部分接口在结尾 data 行（choices 为空数组）携带 usage，必须捕获，否则日志显示 0 tk
-                                    if (dataObj.usage) {
-                                        if (dataObj.usage.total_tokens) totalTokens = dataObj.usage.total_tokens;
-                                        else if (typeof dataObj.usage.prompt_tokens === 'number' && typeof dataObj.usage.completion_tokens === 'number') {
-                                            totalTokens = dataObj.usage.prompt_tokens + dataObj.usage.completion_tokens;
-                                        }
-                                    }
-                                    const delta = dataObj.choices && dataObj.choices[0] ? (dataObj.choices[0].delta || {}) : {};
-                                    // 1. 常规文本流：逐块拼接并触发回调（打字机效果，告别“死机等待”）
-                                    const deltaContent = delta.content || '';
-                                    if (deltaContent) {
-                                        rawContent += deltaContent;
-                                        if (onStreamChunk) onStreamChunk(rawContent, false);
-                                    }
-                                    // 2. 原生函数调用流 (Function Calling)：实时组装被切成碎片的参数 JSON
-                                    if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
-                                        delta.tool_calls.forEach(tc => {
-                                            const idx = tc.index !== undefined ? tc.index : 0;
-                                            if (!toolCallsAcc[idx]) toolCallsAcc[idx] = { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } };
-                                            if (tc.function && tc.function.name) toolCallsAcc[idx].function.name += tc.function.name;
-                                            if (tc.function && tc.function.arguments) {
-                                                toolCallsAcc[idx].function.arguments += tc.function.arguments;
-                                                // 触发 UI 提示正在调用函数（文本为空时显示动态装配动画）
-                                                if (onStreamChunk) onStreamChunk(rawContent, true);
-                                            }
-                                        });
-                                    }
-                                } catch (err) {
-                                    console.warn('流式解析跳过无法解析的片段:', trimmed);
-                                }
-                            }
-                        }
+                        for (const line of lines) processDataLine(line);
+                    }
+                    // 🚀 核心修复：流末 flush——若最后一块数据无换行符结尾，buffer 中残留的结尾内容必须补解析，否则回复尾部被截断
+                    if (buffer.trim()) processDataLine(buffer);
+                    // 若服务端因达到 max_tokens 上限而截断，给出明确提示
+                    if (finishReason === 'length') {
+                        showToast('⚠️ 回复因达到 max_tokens 上限被截断，请在 API 配置中调大"最大回复长度"');
                     }
                 } else {
                     // 【传统非流式模式】
@@ -2362,6 +2368,11 @@ ${extraContext.trim()}`;
                     // 非流式也可能直接返回完整的工具调用
                     if (msg0.tool_calls && Array.isArray(msg0.tool_calls)) {
                         msg0.tool_calls.forEach((tc, idx) => { toolCallsAcc[idx] = tc; });
+                    }
+                    // 🚀 非流式同样检测 max_tokens 截断
+                    const fr = data.choices[0].finish_reason;
+                    if (fr === 'length') {
+                        showToast('⚠️ 回复因达到 max_tokens 上限被截断，请在 API 配置中调大"最大回复长度"');
                     }
                 }
                 rawContent = String(rawContent || '').trim();
