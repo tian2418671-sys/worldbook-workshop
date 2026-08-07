@@ -4095,6 +4095,7 @@ ${extraContext.trim()}`;
                 ${editingBlocks.map((b, i) => `
                     <div style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;margin-bottom:6px;">
                         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            <button class="btn btn-sm" type="button" onclick="togglePromptBlockExpand(${i}, this)" title="展开/收起内容" style="flex:0 0 auto; padding:0 6px; line-height:1;">▸</button>
                             <label style="display:flex; align-items:center; gap:4px; font-size:12px; color:var(--text-secondary); cursor:pointer; white-space:nowrap;">
                                 <input type="checkbox" style="width:auto;" ${b.enabled ? 'checked' : ''} onchange="updatePromptBlock(${i}, 'enabled', this.checked)" />
                                 启用
@@ -4110,7 +4111,9 @@ ${extraContext.trim()}`;
                                 <button class="btn btn-sm btn-danger" type="button" onclick="removePromptBlock(${i})" title="删除区块">🗑️</button>
                             </span>
                         </div>
-                        <textarea placeholder="区块内容..." rows="2" style="width:100%; margin-top:6px; background:var(--bg-input);border:1px solid var(--border-color);border-radius:4px;padding:6px 8px;font-size:12px;color:var(--text-primary);font-family:inherit;line-height:1.5;resize:none;" oninput="autoResize(this);updatePromptBlock(${i}, 'content', this.value)">${escHtml(b.content)}</textarea>
+                        <div class="block-body" data-block-body="${i}" style="display:none;">
+                            <textarea placeholder="区块内容..." rows="2" style="width:100%; margin-top:6px; background:var(--bg-input);border:1px solid var(--border-color);border-radius:4px;padding:6px 8px;font-size:12px;color:var(--text-primary);font-family:inherit;line-height:1.5;resize:none;" oninput="autoResize(this);updatePromptBlock(${i}, 'content', this.value)">${escHtml(b.content)}</textarea>
+                        </div>
                     </div>
                 `).join('') || '<div class="text-muted text-sm" style="padding:8px;">该预设暂无区块，点击"➕ 添加区块"开始。</div>'}
                 <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:8px;">
@@ -4120,13 +4123,33 @@ ${extraContext.trim()}`;
             `;
 
             // 🚀 修复一：延迟触发高度自适应，防止大量 textarea 同时读 scrollHeight 造成强制同步布局卡顿
+            // 只对可见（未收起）的文本域自适应，收起区块的内容留待展开时再撑开
             setTimeout(() => {
-                container.querySelectorAll('textarea').forEach(autoResize);
+                container.querySelectorAll('textarea').forEach(ta => {
+                    if (ta.offsetParent !== null) autoResize(ta);
+                });
             }, 50);
         }
 
         function updatePromptBlock(index, field, value) {
             if (editingBlocks && editingBlocks[index]) { editingBlocks[index][field] = value; }
+        }
+
+        // 🚀 新增：下拉三角控制展开/收起区块内容（默认收起，避免全部内容堆叠展示）
+        function togglePromptBlockExpand(index, btn) {
+            const container = document.getElementById('blockEditorContainer');
+            if (!container || !btn) return;
+            const body = container.querySelector(`[data-block-body="${index}"]`);
+            if (!body) return;
+            const expanded = body.style.display !== 'none';
+            body.style.display = expanded ? 'none' : '';
+            btn.textContent = expanded ? '▸' : '▾';
+            btn.title = expanded ? '展开内容' : '收起内容';
+            // 展开后让文本域自适应高度
+            if (!expanded) {
+                const ta = body.querySelector('textarea');
+                if (ta) autoResize(ta);
+            }
         }
         function addPromptBlock() {
             if (!editingBlocks) initBlockEditor();
