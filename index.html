@@ -1460,7 +1460,7 @@
     <nav class="navbar">
         <div class="navbar-left">
             <span class="logo">📖</span>
-            <span class="workspace-name" id="workspaceName" onclick="showModal('重命名工作台')">我的奇幻世界</span>
+            <span class="workspace-name" id="workspaceName" role="button" tabindex="0" title="点击重命名工作台" aria-label="重命名工作台" onclick="showModal('重命名工作台')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showModal('重命名工作台');}">我的奇幻世界</span>
             <span class="badge">v1.1</span>
         </div>
         <div class="navbar-center">
@@ -2121,7 +2121,7 @@
                         modelListContainer.style.display = 'block';
                         if (modelCount) modelCount.textContent = models.length;
                         modelChips.innerHTML = models.map(m =>
-                            `<span class="model-chip" title="点击填入" onclick="document.getElementById('apiModelInput').value='${escHtml(m)}'">${escHtml(m)}</span>`
+                            `<span class="model-chip" role="button" tabindex="0" title="点击填入" onclick="document.getElementById('apiModelInput').value='${escHtml(m)}'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('apiModelInput').value='${escHtml(m)}'}">${escHtml(m)}</span>`
                         ).join('');
                     }
                     showToast(`成功获取 ${models.length} 个可用模型`);
@@ -4441,7 +4441,7 @@ ${extraContext.trim()}`;
                     <div id="apiListContainer" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px;">
                         ${Object.keys(apiConfigs).map(id => `
                             <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-elevated);padding:6px 10px;border-radius:6px;margin-bottom:4px;">
-                                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="editApiConfig('${id}')" title="点击载入此配置进行编辑">
+                                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" role="button" tabindex="0" onclick="editApiConfig('${id}')" title="点击载入此配置进行编辑" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();editApiConfig('${id}')}">
                                     <strong>${apiConfigs[id].name}</strong> (${apiConfigs[id].model})
                                 </span>
                                 <span style="display:flex;gap:4px;flex-shrink:0;margin-left:6px;">
