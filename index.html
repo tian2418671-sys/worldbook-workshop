@@ -1464,24 +1464,24 @@
             <span class="badge">v1.1</span>
         </div>
         <div class="navbar-center">
-            <button class="btn btn-primary btn-sm" onclick="handleNewWorkspace()">📂 新建</button>
-            <button class="btn btn-sm" onclick="handleSaveWorkspace()">💾 保存配置</button>
-            <button class="btn btn-sm" onclick="handleLoadWorkspace()">📂 读取配置</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="handleNewWorkspace()">📂 新建</button>
+            <button type="button" class="btn btn-sm" onclick="handleSaveWorkspace()">💾 保存配置</button>
+            <button type="button" class="btn btn-sm" onclick="handleLoadWorkspace()">📂 读取配置</button>
             <span class="badge" style="margin-left:4px;">工作台</span>
         </div>
         <div class="navbar-right">
             <select class="select-styled" id="apiSelect" onchange="switchApi(this.value)" title="选择 API 配置"
                 aria-label="选择 API 配置" style="max-width:140px;"></select>
-            <button class="btn btn-sm" onclick="showModal('API 配置管理')" title="API 管理" aria-label="API 配置管理">⚙️</button>
+            <button type="button" class="btn btn-sm" onclick="showModal('API 配置管理')" title="API 管理" aria-label="API 配置管理">⚙️</button>
 
             <select class="select-styled" id="promptSelect" onchange="switchPrompt(this.value)" title="选择提示词预设"
                 aria-label="选择提示词预设" style="max-width:130px;"></select>
-            <button class="btn btn-sm" onclick="showModal('提示词管理')" title="提示词管理" aria-label="提示词管理">⚙️</button>
+            <button type="button" class="btn btn-sm" onclick="showModal('提示词管理')" title="提示词管理" aria-label="提示词管理">⚙️</button>
 
-            <button class="icon-btn" onclick="showModal('📋 调用日志')" title="调用日志" aria-label="调用日志">📋</button>
-            <button class="icon-btn" onclick="toggleChatPanel()" title="AI 助手" aria-label="AI 助手">💬</button>
-            <button class="icon-btn" onclick="toggleTheme()" title="切换亮色/暗色主题" aria-label="切换亮色/暗色主题" id="themeToggleBtn">🌙</button>
-            <button class="icon-btn" onclick="showModal('⚙️ 全局设置')" title="设置" aria-label="全局设置">⚙️</button>
+            <button type="button" class="icon-btn" onclick="showModal('📋 调用日志')" title="调用日志" aria-label="调用日志">📋</button>
+            <button type="button" class="icon-btn" onclick="toggleChatPanel()" title="AI 助手" aria-label="AI 助手">💬</button>
+            <button type="button" class="icon-btn" onclick="toggleTheme()" title="切换亮色/暗色主题" aria-label="切换亮色/暗色主题" id="themeToggleBtn">🌙</button>
+            <button type="button" class="icon-btn" onclick="showModal('⚙️ 全局设置')" title="设置" aria-label="全局设置">⚙️</button>
         </div>
     </nav>
 
@@ -1491,12 +1491,12 @@
         <aside class="sidebar-left" id="worldbookList">
             <div class="section-title">📚 世界书</div>
             <div style="display: flex; gap: 4px; width: 100%;">
-                <button class="btn btn-primary btn-sm" style="flex: 1; justify-content:center;"
+                <button type="button" class="btn btn-primary btn-sm" style="flex: 1; justify-content:center;"
                     onclick="showModal('新建世界书')">＋ 新建</button>
-                <button class="btn btn-sm" style="flex: 1; justify-content:center;" onclick="handleImportWorldbook()"
+                <button type="button" class="btn btn-sm" style="flex: 1; justify-content:center;" onclick="handleImportWorldbook()"
                     title="导入本地 JSON">📥 导入</button>
             </div>
-            <button class="btn btn-sm" style="width: 100%; justify-content:center; margin-top: 4px;"
+            <button type="button" class="btn btn-sm" style="width: 100%; justify-content:center; margin-top: 4px;"
                 onclick="exportWorldbook()" title="导出当前选中世界书">📤 导出当前世界书</button>
 
             <div id="wbContainer" style="display:flex;flex-direction:column;gap:4px;margin-top:4px;"></div>
@@ -1533,11 +1533,11 @@
                 </select>
             </div>
             <div class="toolbar">
-                <button class="btn btn-primary btn-sm" onclick="handleNewEntry()" title="新建条目">➕ 新建</button>
-                <button class="btn btn-sm" onclick="openGraph()" title="开启星图：可视化当前世界书条目关联" style="background: var(--bg-elevated); border: 1px solid var(--accent);">🌐 开启星图</button>
-                <button class="icon-btn" onclick="showModal('🔍 触发预览')" title="触发扫描预览" aria-label="触发扫描预览">🔍</button>
-                <button class="icon-btn" onclick="showModal('✨ 批量生成')" title="批量生成" aria-label="批量生成">✨</button>
-                <button class="icon-btn" onclick="showModal('🧠 智能调优')" title="全局调优" aria-label="全局调优">🧠</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="handleNewEntry()" title="新建条目">➕ 新建</button>
+                <button type="button" class="btn btn-sm" onclick="openGraph()" title="开启星图：可视化当前世界书条目关联" style="background: var(--bg-elevated); border: 1px solid var(--accent);">🌐 开启星图</button>
+                <button type="button" class="icon-btn" onclick="showModal('🔍 触发预览')" title="触发扫描预览" aria-label="触发扫描预览">🔍</button>
+                <button type="button" class="icon-btn" onclick="showModal('✨ 批量生成')" title="批量生成" aria-label="批量生成">✨</button>
+                <button type="button" class="icon-btn" onclick="showModal('🧠 智能调优')" title="全局调优" aria-label="全局调优">🧠</button>
             </div>
             <div id="entryContainer" style="display:flex;flex-direction:column;gap:4px;"></div>
         </aside>
@@ -1554,20 +1554,20 @@
                 <span class="chat-header-title">设定交流助手</span>
                 <span class="chat-header-badge" id="chatStatusBadge">读写</span>
             </div>
-            <button class="icon-btn" onclick="toggleChatPanel()" title="关闭" aria-label="关闭聊天面板">✕</button>
+            <button type="button" class="icon-btn" onclick="toggleChatPanel()" title="关闭" aria-label="关闭聊天面板">✕</button>
         </div>
         <div class="chat-toolbar">
-            <button class="btn btn-primary btn-sm" onclick="createNewChat()" title="创建新对话">＋ 新对话</button>
-            <button class="btn btn-sm" onclick="toggleChatHistory()" title="查看历史对话">📚 历史</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="createNewChat()" title="创建新对话">＋ 新对话</button>
+            <button type="button" class="btn btn-sm" onclick="toggleChatHistory()" title="查看历史对话">📚 历史</button>
             <span class="chat-session-title" id="chatSessionTitle">新对话</span>
         </div>
         <div class="chat-toolbar-sub">
-            <button class="btn btn-sm" onclick="clearChat()" title="清空当前对话">🧹 清空</button>
-            <button class="btn btn-sm" onclick="goBackChat()" title="返回上一轮">↩️ 回退</button>
-            <button class="btn btn-sm" onclick="editLastChat()" title="修改上一轮并重发">✏️ 改上轮</button>
-            <button class="btn btn-sm" onclick="viewLastChatDetails()" title="查看最近一条AI回复的完整内容与隐藏信息">🕵️ 详情</button>
+            <button type="button" class="btn btn-sm" onclick="clearChat()" title="清空当前对话">🧹 清空</button>
+            <button type="button" class="btn btn-sm" onclick="goBackChat()" title="返回上一轮">↩️ 回退</button>
+            <button type="button" class="btn btn-sm" onclick="editLastChat()" title="修改上一轮并重发">✏️ 改上轮</button>
+            <button type="button" class="btn btn-sm" onclick="viewLastChatDetails()" title="查看最近一条AI回复的完整内容与隐藏信息">🕵️ 详情</button>
             <span class="chat-toolbar-spacer"></span>
-            <button class="btn btn-sm chat-settings-toggle" id="chatSettingsToggle" onclick="toggleChatSettings()" title="展开/收起设置">⚙️ 设置</button>
+            <button type="button" class="btn btn-sm chat-settings-toggle" id="chatSettingsToggle" onclick="toggleChatSettings()" title="展开/收起设置">⚙️ 设置</button>
         </div>
         <div class="chat-history-panel" id="chatHistoryPanel"></div>
         <div class="chat-settings" id="chatSettings">
@@ -1606,7 +1606,7 @@
         <div class="chat-input-area">
             <textarea id="chatInput" placeholder="输入问题 (Enter发送, Shift+Enter换行)"
                 onkeydown="handleChatKeyDown(event)"></textarea>
-            <button class="btn btn-primary" id="chatSendBtn" onclick="sendChatMessage()">发送</button>
+            <button type="button" class="btn btn-primary" id="chatSendBtn" onclick="sendChatMessage()">发送</button>
         </div>
     </div>
     <!-- ===== 模态框 ===== -->
@@ -1615,8 +1615,8 @@
             <div class="modal-title" id="modalTitle">标题</div>
             <div class="modal-body" id="modalBody"></div>
             <div class="modal-footer">
-                <button class="btn" onclick="closeModal()">取消</button>
-                <button class="btn btn-primary" id="modalConfirmBtn" onclick="handleModalConfirm()">确认</button>
+                <button type="button" class="btn" onclick="closeModal()">取消</button>
+                <button type="button" class="btn btn-primary" id="modalConfirmBtn" onclick="handleModalConfirm()">确认</button>
             </div>
         </div>
     </div>
@@ -4983,7 +4983,7 @@ ${extraContext.trim()}`;
     <div id="graphModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-base); z-index: 3000;">
         <div style="position: absolute; top: 20px; right: 30px; z-index: 3010; display: flex; gap: 15px; align-items: center;">
             <span style="color: var(--text-secondary); font-size: 14px;">💡 提示：鼠标滚轮缩放，拖拽画布平移，点击节点可直接跳转编辑</span>
-            <button class="btn" onclick="closeGraph()" style="background: var(--bg-elevated); color: var(--red); border: 1px solid var(--red);">❌ 关闭星图</button>
+            <button type="button" class="btn" onclick="closeGraph()" style="background: var(--bg-elevated); color: var(--red); border: 1px solid var(--red);">❌ 关闭星图</button>
         </div>
         <div id="graphContainer" style="width: 100%; height: 100%;"></div>
     </div>
