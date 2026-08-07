@@ -1705,26 +1705,35 @@
         // IndexedDB 主键 + LocalStorage 旧键（用于无缝迁移与降级容灾）
         const IDB_KEY = 'worldbook_workshop_data';
         const LS_KEY = 'lorebook_studio_backup';
-        function saveToLocal() {
+        // 🚀 修复三：保存防抖计时器（拦截"幽灵保存"引发的高并发磁盘写入）
+        let saveToLocalTimer = null;
+
+        // 打包当前内存状态为保存数据（供正常写入与卸载冲刷共用）
+        function buildSaveData() {
+            const toggleElement = document.getElementById('ai-modify-toggle');
+            return {
+                lastModified: Date.now(), // 🚀 修复3：注入时间戳，用于断网降级时的智能裁决
+                worldbooks: worldbooks,
+                currentWorldbookUid: currentWorldbookUid,
+                apiConfigs: apiConfigs,
+                currentApiId: currentApiId,
+                apiLogs: apiLogs,
+                chatMessages: chatMessages,
+                chatConversations: chatConversations,
+                currentChatId: currentChatId,
+                promptPresets: promptPresets, // 保存提示词预设
+                currentPromptId: currentPromptId,
+                chatRules: chatRules,
+                chatUsePreset: typeof chatUsePreset !== 'undefined' ? chatUsePreset : false,
+                entrySortMode: typeof entrySortMode !== 'undefined' ? entrySortMode : 'manual',
+                chatAllowModify: toggleElement ? toggleElement.checked : chatAllowModify
+            };
+        }
+
+        // 真正的写入核心（保持原有完整打包写入逻辑）
+        function _saveToLocalCore() {
             try {
-                const toggleElement = document.getElementById('ai-modify-toggle');
-                const data = {
-                    lastModified: Date.now(), // 🚀 修复3：注入时间戳，用于断网降级时的智能裁决
-                    worldbooks: worldbooks,
-                    currentWorldbookUid: currentWorldbookUid,
-                    apiConfigs: apiConfigs,
-                    currentApiId: currentApiId,
-                    apiLogs: apiLogs,
-                    chatMessages: chatMessages,
-                    chatConversations: chatConversations,
-                    currentChatId: currentChatId,
-                    promptPresets: promptPresets, // 保存提示词预设
-                    currentPromptId: currentPromptId,
-                    chatRules: chatRules,
-                    chatUsePreset: typeof chatUsePreset !== 'undefined' ? chatUsePreset : false,
-                    entrySortMode: typeof entrySortMode !== 'undefined' ? entrySortMode : 'manual',
-                    chatAllowModify: toggleElement ? toggleElement.checked : chatAllowModify
-                };
+                const data = buildSaveData();
                 // 🚀 核心升级：优先使用 IndexedDB（localforage）非阻塞保存，超大容量不卡顿
                 if (typeof localforage !== 'undefined') {
                     localforage.setItem(IDB_KEY, data).catch(err => {
@@ -1740,6 +1749,25 @@
                 console.error('数据打包失败:', e);
             }
         }
+
+        // 🚀 修复三：带防抖盾牌的 saveToLocal（停手 500ms 后合并为一次终极保存，防 I/O 卡顿）
+        function saveToLocal() {
+            if (saveToLocalTimer) clearTimeout(saveToLocalTimer);
+            saveToLocalTimer = setTimeout(() => {
+                saveToLocalTimer = null;
+                _saveToLocalCore();
+            }, 500);
+        }
+
+        // 页面关闭/刷新前冲刷未落盘的保存，防止丢失最后一步
+        window.addEventListener('beforeunload', () => {
+            if (saveToLocalTimer) {
+                clearTimeout(saveToLocalTimer);
+                saveToLocalTimer = null;
+            }
+            // 卸载时 IndexedDB 异步写入可能来不及，同步落一份 LocalStorage 兜底
+            try { localStorage.setItem(LS_KEY, JSON.stringify(buildSaveData())); } catch (e) {}
+        });
 
         // ============================================================
         //  自动备份快照（删除类操作前的安全网）
@@ -4028,6 +4056,26 @@ ${extraContext.trim()}`;
             editingBlocks = JSON.parse(JSON.stringify(preset.blocks));
         }
 
+        // 🚀 修复二：textarea 高度自适应（用 requestAnimationFrame 打散布局压力，防 Layout Thrashing）
+        function autoResize(el) {
+            if (!el) return;
+            let done = false;
+            const doResize = () => {
+                if (done) return;
+                done = true;
+                el.style.height = 'auto'; // 先归零
+                el.style.height = el.scrollHeight + 'px'; // 再根据实际内容撑开
+            };
+            // 优先利用浏览器帧渲染机制打散布局压力
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(doResize);
+                // 兜底：若 rAF 被节流（后台标签页/忙碌），150ms 后强制生效，保证高度最终被撑开
+                setTimeout(doResize, 150);
+            } else {
+                doResize();
+            }
+        }
+
         // 渲染块编辑区
         function renderBlockEditor() {
             const container = document.getElementById('blockEditorContainer');
@@ -4062,7 +4110,7 @@ ${extraContext.trim()}`;
                                 <button class="btn btn-sm btn-danger" type="button" onclick="removePromptBlock(${i})" title="删除区块">🗑️</button>
                             </span>
                         </div>
-                        <textarea placeholder="区块内容..." rows="2" style="width:100%; margin-top:6px; background:var(--bg-input);border:1px solid var(--border-color);border-radius:4px;padding:6px 8px;font-size:12px;color:var(--text-primary);font-family:inherit;line-height:1.5;resize:none;" onchange="updatePromptBlock(${i}, 'content', this.value)">${escHtml(b.content)}</textarea>
+                        <textarea placeholder="区块内容..." rows="2" style="width:100%; margin-top:6px; background:var(--bg-input);border:1px solid var(--border-color);border-radius:4px;padding:6px 8px;font-size:12px;color:var(--text-primary);font-family:inherit;line-height:1.5;resize:none;" oninput="autoResize(this);updatePromptBlock(${i}, 'content', this.value)">${escHtml(b.content)}</textarea>
                     </div>
                 `).join('') || '<div class="text-muted text-sm" style="padding:8px;">该预设暂无区块，点击"➕ 添加区块"开始。</div>'}
                 <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:8px;">
@@ -4070,6 +4118,11 @@ ${extraContext.trim()}`;
                     <button class="btn btn-sm" type="button" onclick="initBlockEditor();renderBlockEditor();">↩️ 放弃修改</button>
                 </div>
             `;
+
+            // 🚀 修复一：延迟触发高度自适应，防止大量 textarea 同时读 scrollHeight 造成强制同步布局卡顿
+            setTimeout(() => {
+                container.querySelectorAll('textarea').forEach(autoResize);
+            }, 50);
         }
 
         function updatePromptBlock(index, field, value) {
