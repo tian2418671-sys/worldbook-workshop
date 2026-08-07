@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>世界书工坊 · AI 驱动</title>
     <style>
-        /* ===== 全局重置 ===== */
+/* ===== 全局重置 ===== */
         * {
             margin: 0;
             padding: 0;
@@ -1435,7 +1435,8 @@
                 right: 0;
             }
         }
-    </style>
+
+</style>
     <!-- Markdown 渲染库：把 AI 回复中的 **加粗** / *斜体* / 列表等语法渲染为美观 HTML（离线时自动降级为纯文本） -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- localforage：IndexedDB 封装库，提供超大容量且非阻塞的本地存储（离线/断网时自动降级回 LocalStorage） -->
@@ -1543,7 +1544,6 @@
         </main>
     </div>
     <div id="chatPanel" class="chat-panel">
-        <!-- 头部：头像 + 标题 + 模式徽章 + 关闭 -->
         <div class="chat-header">
             <div class="chat-header-left">
                 <span class="chat-header-avatar">💬</span>
@@ -1552,15 +1552,11 @@
             </div>
             <button class="icon-btn" onclick="toggleChatPanel()" title="关闭">✕</button>
         </div>
-
-        <!-- 主操作行 -->
         <div class="chat-toolbar">
             <button class="btn btn-primary btn-sm" onclick="createNewChat()" title="创建新对话">＋ 新对话</button>
             <button class="btn btn-sm" onclick="toggleChatHistory()" title="查看历史对话">📚 历史</button>
             <span class="chat-session-title" id="chatSessionTitle">新对话</span>
         </div>
-
-        <!-- 次级操作行 -->
         <div class="chat-toolbar-sub">
             <button class="btn btn-sm" onclick="clearChat()" title="清空当前对话">🧹 清空</button>
             <button class="btn btn-sm" onclick="goBackChat()" title="返回上一轮">↩️ 回退</button>
@@ -1569,11 +1565,7 @@
             <span class="chat-toolbar-spacer"></span>
             <button class="btn btn-sm chat-settings-toggle" id="chatSettingsToggle" onclick="toggleChatSettings()" title="展开/收起设置">⚙️ 设置</button>
         </div>
-
-        <!-- 历史记录 -->
         <div class="chat-history-panel" id="chatHistoryPanel"></div>
-
-        <!-- 设置区（可折叠）：读写模式 / 注入预设 / 微调规则 -->
         <div class="chat-settings" id="chatSettings">
             <div class="chat-setting-row">
                 <label class="chat-switch">
@@ -1604,13 +1596,9 @@
                     placeholder="在这里输入系统规则以微调 AI 的回答风格..."></textarea>
             </div>
         </div>
-
-        <!-- 消息区 -->
         <div class="chat-messages" id="chatMessages">
             <div class="text-muted text-sm" style="text-align:center; padding:20px;">欢迎使用对话助手！当前选中的条目内容会自动作为上下文附带。</div>
         </div>
-
-        <!-- 输入区 -->
         <div class="chat-input-area">
             <textarea id="chatInput" placeholder="输入问题 (Enter发送, Shift+Enter换行)"
                 onkeydown="handleChatKeyDown(event)"></textarea>
@@ -1630,7 +1618,8 @@
     </div>
 
     <script>
-        // ============================================================
+// ===== main.js =====
+// ============================================================
         //  全局状态
         // ============================================================
         let worldbooks = [{
@@ -2679,7 +2668,7 @@ ${extraContext.trim()}`;
         function highlightText(text, q) {
             if (!q || !text) return text;
             try {
-                const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\<!-- JS_PLACEHOLDER -->');
                 return String(text).replace(new RegExp('(' + escaped + ')', 'gi'), '<span style="color:var(--yellow);font-weight:500;">$1</span>');
             } catch (e) { return text; }
         }
@@ -4983,8 +4972,7 @@ ${extraContext.trim()}`;
             if (e.ctrlKey && e.key === 'n') { e.preventDefault(); showModal('新建条目'); }
             // Ctrl+Enter 发送聊天由 handleChatKeyDown 处理（textarea 内）
         });
-
-    </script>
+</script>
 
     <!-- 🚀 星图：全屏知识图谱画布（ECharts 力导向图） -->
     <div id="graphModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-base); z-index: 3000;">
