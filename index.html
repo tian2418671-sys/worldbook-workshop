@@ -3535,6 +3535,15 @@ ${extraContext.trim()}`;
                 systemPrompts.push(`【当前激活的世界观上下文】\n(当前对话未触发任何特定设定，请根据基础设定自由发挥)`);
             }
 
+            // ===== 🚀 新增：全局目录雷达（赋予 AI 上帝视角） =====
+            const allEntriesList = getEntriesArray();
+            if (allEntriesList.length > 0) {
+                // 将所有条目压缩成 "UID:标题" 的轻量级字符串
+                const catalogStr = allEntriesList.map(e => `${e.uid}:${(Array.isArray(e.keys) && e.keys[0]) ? e.keys[0] : '未命名'}`).join(', ');
+                systemPrompts.push(`【全局目录雷达】(赋予你的全局视野)\n当前工作台包含以下所有条目(UID:主触发词)：\n${catalogStr}\n\n[指令：当用户要求“遍历/检查/合并/梳理”条目时，请根据此目录推演。若需合并，你可以直接结合 UID 调用 update_worldbook 进行操作（如：更新条目A，删除多余的条目B）。]`);
+            }
+            // ===== 🚀 新增结束 =====
+
             // 4. 初始化要发给 API 的 Messages 数组
             const systemPromptText = systemPrompts.join('\n\n=====\n\n');
             let apiMessages = [
