@@ -3579,11 +3579,12 @@ ${extraContext.trim()}`;
             ];
 
             // 5. 注入历史聊天记录 (限制近 10 条防止 Token 撑爆)
+            //    🚀 隔离占位符：占位气泡已在构建 apiMessages 之后才 push，此处再加一道防御，
+            //    任何异常路径（并发/残留）下都绝不把 '...' 占位消息发给 API，从源头杜绝 400。
             const maxHistoryLength = 10;
-            const history = chatMessages.slice(-maxHistoryLength).map(msg => ({
-                role: msg.role,
-                content: msg.content
-            }));
+            const history = chatMessages.slice(-maxHistoryLength)
+                .filter(m => m && !m._pending && m.content !== '...')
+                .map(msg => ({ role: msg.role, content: msg.content }));
             apiMessages.push(...history);
 
             // 定义结构化的原生工具 Schema（原生 Function Calling / Tool Calling）
@@ -4349,7 +4350,7 @@ ${extraContext.trim()}`;
                 let hit = false;
                 if (e.constant) { hit = true; }                              // 常驻：总是触发
                 else if (e.selectiveLogic === 3) { hit = keys.length > 0 && matched.length === keys.length; } // AND_ALL
-                else if (e.selectiveLogic === 1) { hit = keys.length > 0 && matched.length < keys.length; }   // NOT_ALL
+                else if (e.selectiveLogic === 1) { hit = matched.length > 0 && matched.length < keys.length; }   // NOT_ALL: 至少命中1个但非全中才触发，杜绝零匹配全量爆破
                 else if (e.selectiveLogic === 2) { hit = matched.length === 0; }                             // NOT_ANY
                 else { hit = matched.length > 0; }                                                          // AND_ANY (0)
                 // 深度过滤：非常驻条目深度超过扫描深度时不触发
