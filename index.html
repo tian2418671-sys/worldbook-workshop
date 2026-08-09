@@ -4807,7 +4807,18 @@ ${extraContext.trim()}`;
         //  📦 多预设总条目系统（总条目库管理 + 导入新建 + 渲染 + AI 编译）
         // ============================================================
 
-        // 📥 万能酒馆预设导入：每次导入直接新建一个"预设总条目"（支持无参弹文件框）
+        // 🧠 辅助函数：安全解码（专门对付 %E4%B8%AD 这种 URL 乱码）
+        function safeDecode(str) {
+            if (!str) return '';
+            try {
+                // 如果是 URL 编码格式的乱码，这里会把它还原成正常中文
+                return decodeURIComponent(str);
+            } catch (e) {
+                return str;
+            }
+        }
+
+        // 📥 万能酒馆预设导入：每次导入直接新建一个"预设总条目"（带防乱码机制，支持无参弹文件框）
         function handlePresetImport(file) {
             if (!file) {
                 const input = document.createElement('input');
@@ -4841,19 +4852,26 @@ ${extraContext.trim()}`;
                         return;
                     }
 
-                    // 2. 格式化内部规则块（严格锁定原本顺序，name 与 identifier 双写兼容新旧渲染）
-                    const formattedBlocks = extractedBlocks.map((b, index) => ({
-                        id: 'block_' + Date.now() + '_' + String(index).padStart(4, '0'),
-                        identifier: b.identifier || b.name || `规则块 ${index + 1}`,
-                        name: b.identifier || b.name || `规则块 ${index + 1}`,
-                        content: b.content || b.text || '',
-                        role: b.role || 'system',
-                        enabled: b.enabled !== undefined ? b.enabled : true
-                    }));
+                    // 2. 格式化内部规则块（严格锁定原本顺序，并进行乱码解码，name 与 identifier 双写兼容新旧渲染）
+                    const formattedBlocks = extractedBlocks.map((b, index) => {
+                        const blockName = safeDecode(b.identifier || b.name) || `规则块 ${index + 1}`;
+                        return {
+                            id: 'block_' + Date.now() + '_' + String(index).padStart(4, '0'),
+                            // 🛡️ 给子规则名称套上解码保护
+                            identifier: blockName,
+                            name: blockName,
+                            content: safeDecode(b.content || b.text) || '',
+                            role: b.role || 'system',
+                            enabled: b.enabled !== undefined ? b.enabled : true
+                        };
+                    });
 
-                    // 3. 提取总条目名称（优先读取 JSON name，否则使用文件名）
-                    let masterName = file.name.replace(/\.[^/.]+$/, '').trim();
-                    if (json.name) masterName = String(json.name).trim();
+                    // 3. 提取总条目名称（优先读取 JSON name，否则使用文件名，均套解码保护）
+                    let rawFileName = file.name.replace(/\.[^/.]+$/, '').trim();
+                    let masterName = safeDecode(rawFileName); // 🛡️ 给文件名套上解码保护
+                    if (json.name) {
+                        masterName = safeDecode(String(json.name).trim()); // 🛡️ 给 JSON 内部名称套上保护
+                    }
 
                     // 防重名命名处理
                     let finalName = masterName || '未命名预设';
