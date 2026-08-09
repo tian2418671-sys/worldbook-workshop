@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>世界书工坊 · AI 驱动</title>
     <style>
+
         /* ===== 全局重置 ===== */
         * {
             margin: 0;
@@ -1435,7 +1436,8 @@
                 right: 0;
             }
         }
-    </style>
+    
+</style>
     <!-- Markdown 渲染库：把 AI 回复中的 **加粗** / *斜体* / 列表等语法渲染为美观 HTML（离线时自动降级为纯文本） -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- localforage：IndexedDB 封装库，提供超大容量且非阻塞的本地存储（离线/断网时自动降级回 LocalStorage） -->
@@ -1462,6 +1464,7 @@
             <button class="btn btn-primary btn-sm" onclick="handleNewWorkspace()">📂 新建</button>
             <button class="btn btn-sm" onclick="handleSaveWorkspace()">💾 保存配置</button>
             <button class="btn btn-sm" onclick="handleLoadWorkspace()">📂 读取配置</button>
+            <button class="btn btn-sm" onclick="undoLastChange()" title="撤回上一次修改内容">↩️ 撤回</button>
             <span class="badge" style="margin-left:4px;">工作台</span>
         </div>
         <div class="navbar-right">
@@ -1634,6 +1637,8 @@
     </div>
 
     <script>
+// ===== main.js =====
+
         // ============================================================
         //  全局状态
         // ============================================================
@@ -1732,6 +1737,9 @@
         const LS_KEY = 'lorebook_studio_backup';
         // 🚀 修复三：保存防抖计时器（拦截"幽灵保存"引发的高并发磁盘写入）
         let saveToLocalTimer = null;
+        // 🚀 撤回机制：记录上一次修改前的状态，供「↩️ 撤回」恢复
+        let undoSnapshot = null;   // 可撤回的上一次修改前状态（深拷贝）
+        let lastSavedData = null;  // 上一次成功保存的状态（用于生成撤销点）
 
         // 打包当前内存状态为保存数据（供正常写入与卸载冲刷共用）
         function buildSaveData() {
@@ -1761,6 +1769,11 @@
         function _saveToLocalCore() {
             try {
                 const data = buildSaveData();
+                // 🚀 撤回机制：每次保存前，把"上一次已保存状态"记为撤销目标（始终指向最近一次修改前）
+                if (lastSavedData !== null) {
+                    try { undoSnapshot = JSON.parse(JSON.stringify(lastSavedData)); } catch (e2) { undoSnapshot = null; }
+                }
+                try { lastSavedData = JSON.parse(JSON.stringify(data)); } catch (e3) {}
                 // 🚀 核心升级：优先使用 IndexedDB（localforage）非阻塞保存，超大容量不卡顿
                 if (typeof localforage !== 'undefined') {
                     localforage.setItem(IDB_KEY, data).catch(err => {
@@ -1784,6 +1797,51 @@
                 saveToLocalTimer = null;
                 _saveToLocalCore();
             }, 500);
+        }
+
+        // 🚀 撤回上一次修改（恢复到最近一次保存前的状态）
+        function undoLastChange() {
+            if (!undoSnapshot) {
+                showToast('ℹ️ 暂无修改可撤回（还没有发生过保存）');
+                return;
+            }
+            if (!confirm('确定要撤回上一次的修改内容吗？当前更改将被覆盖。')) return;
+            try {
+                // 恢复核心工作数据
+                if (undoSnapshot.worldbooks) worldbooks = undoSnapshot.worldbooks;
+                if (undoSnapshot.currentWorldbookUid) currentWorldbookUid = undoSnapshot.currentWorldbookUid;
+                if (undoSnapshot.promptPresets) promptPresets = undoSnapshot.promptPresets;
+                if (undoSnapshot.currentPromptId) currentPromptId = undoSnapshot.currentPromptId;
+                if (undoSnapshot.apiConfigs) apiConfigs = undoSnapshot.apiConfigs;
+                if (undoSnapshot.currentApiId) currentApiId = undoSnapshot.currentApiId;
+                if (undoSnapshot.apiLogs) apiLogs = undoSnapshot.apiLogs;
+                if (Array.isArray(undoSnapshot.chatConversations)) {
+                    chatConversations = undoSnapshot.chatConversations;
+                    currentChatId = undoSnapshot.currentChatId || (chatConversations.length ? chatConversations[0].id : null);
+                    const curConv = chatConversations.find(c => c.id === currentChatId);
+                    chatMessages = curConv ? curConv.messages : [];
+                }
+                if (undoSnapshot.chatRules) chatRules = undoSnapshot.chatRules;
+                if (Array.isArray(undoSnapshot.knowledgeDatabase)) knowledgeDatabase = undoSnapshot.knowledgeDatabase;
+                if (undoSnapshot.currentLearnedFormat) window.currentLearnedFormat = undoSnapshot.currentLearnedFormat;
+                if (typeof undoSnapshot.chatUsePreset === 'boolean') chatUsePreset = undoSnapshot.chatUsePreset;
+                if (typeof undoSnapshot.entrySortMode !== 'undefined') entrySortMode = undoSnapshot.entrySortMode;
+
+                // 撤回后的状态作为新的"上一次保存"基线，并清空撤销点（一次性撤回）
+                lastSavedData = undoSnapshot;
+                undoSnapshot = null;
+
+                saveToLocal();
+                renderDropdowns();
+                renderAll();
+                renderChatSessions();
+                renderChatMessages();
+                updateChatModeBadge();
+                showToast('↩️ 已撤回上一次修改');
+            } catch (err) {
+                console.error('撤回失败:', err);
+                showToast('❌ 撤回失败: ' + err.message);
+            }
         }
 
         // 页面关闭/刷新前冲刷未落盘的保存，防止丢失最后一步
@@ -3178,6 +3236,7 @@ ${extraContext.trim()}`;
                     <input class="title-input" id="entry-name-input" value="${entry.comment || entry.name || (entry.keys && entry.keys[0]) || ''}" placeholder="📌 条目名称 (UI 显示名，如：亚瑟王·设定卡)" oninput="saveCurrentEntryField('comment', this.value)" />
                     <div class="editor-actions">
                         <button class="btn btn-success btn-sm" onclick="showModal('✨ AI 生成')">✨ 生成</button>
+                        <button class="btn btn-sm" onclick="generateWithPresetUI()" title="使用酒馆预设规则生成/改写当前条目">🎯 预设生成</button>
                         <button class="btn btn-sm" onclick="showModal('📝 AI 扩写')">📝 扩写</button>
                         <button class="btn btn-sm" onclick="showModal('🎨 AI 润色')">🎨 润色</button>
                         <button class="btn btn-sm" onclick="showModal('🔍 审查')">🔍 审查</button>
@@ -4526,6 +4585,43 @@ ${extraContext.trim()}`;
             return response;
         }
 
+        /**
+         * 🎯 用酒馆预设生成/改写当前条目（generateEntryWithPreset 的 UI 落地）
+         */
+        function generateWithPresetUI() {
+            const entry = getCurrentEntry();
+            const bodyHTML = `
+                <p style="font-size:13px; color:#aaa; margin:0 0 8px;">🎯 将使用当前「已启用的酒馆预设规则」+「自定义格式学习」为你创作或改写此条目。</p>
+                <textarea id="presetGenInput" rows="6" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; font-family:inherit;" placeholder="输入创作要求，例如：设计一个蒸汽朋克风格的炼金兵工厂，含名称、触发词与正文设定。">${escHtml(entry && entry.content ? entry.content : '')}</textarea>
+            `;
+            showModal('🎯 预设生成', {
+                bodyHTML: bodyHTML,
+                confirmText: '🚀 用预设生成',
+                onConfirm: async () => {
+                    const inputText = document.getElementById('presetGenInput').value;
+                    const confirmBtn = document.getElementById('modalConfirmBtn');
+                    const originalText = confirmBtn.textContent;
+                    confirmBtn.textContent = '生成中...'; confirmBtn.disabled = true;
+                    try {
+                        // 把当前条目关键词作为世界书上下文注入预设宏
+                        const ctx = entry ? (Array.isArray(entry.keys) ? entry.keys.join(', ') : '') : '';
+                        const result = await generateEntryWithPreset(inputText, ctx);
+                        if (result && entry) {
+                            updateEntryField('content', result);
+                            showToast('✅ 预设生成完成！');
+                            closeModal();
+                        } else {
+                            showToast('❌ 生成失败或没有返回内容');
+                        }
+                    } catch (e) {
+                        console.error('预设生成出错:', e);
+                        showToast('❌ 生成出错: ' + e.message);
+                    }
+                    confirmBtn.textContent = originalText; confirmBtn.disabled = false;
+                }
+            });
+        }
+
         // ============================================================
         //  预设语法特征检测 + 酒馆宏渲染 + 自适应全局请求构建引擎
         // ============================================================
@@ -5782,8 +5878,7 @@ ${learned.sample}
             if (e.ctrlKey && e.key === 'n') { e.preventDefault(); showModal('新建条目'); }
             // Ctrl+Enter 发送聊天由 handleChatKeyDown 处理（textarea 内）
         });
-
-    </script>
+</script>
 
     <!-- 🚀 星图：全屏知识图谱画布（ECharts 力导向图） -->
     <div id="graphModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-base); z-index: 3000;">
