@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>世界书工坊 · AI 驱动</title>
     <style>
-/* ===== 全局重置 ===== */
+        /* ===== 全局重置 ===== */
         * {
             margin: 0;
             padding: 0;
@@ -408,7 +408,6 @@
             font-size: 12px;
             cursor: pointer;
             transition: all 0.15s;
-            -webkit-user-select: none;
             user-select: none;
         }
         .model-chip:hover {
@@ -645,7 +644,6 @@
             position: fixed;
             inset: 0;
             background: rgba(0, 0, 0, 0.7);
-            -webkit-backdrop-filter: blur(4px);
             backdrop-filter: blur(4px);
             justify-content: center;
             align-items: center;
@@ -1087,7 +1085,6 @@
             font-size: 12px;
             color: var(--text-primary);
             border: 1px solid transparent;
-            -webkit-user-select: none;
             user-select: none;
         }
 
@@ -1214,7 +1211,6 @@
             cursor: pointer;
             display: flex;
             justify-content: space-between;
-            -webkit-user-select: none;
             user-select: none;
         }
 
@@ -1439,8 +1435,7 @@
                 right: 0;
             }
         }
-
-</style>
+    </style>
     <!-- Markdown 渲染库：把 AI 回复中的 **加粗** / *斜体* / 列表等语法渲染为美观 HTML（离线时自动降级为纯文本） -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- localforage：IndexedDB 封装库，提供超大容量且非阻塞的本地存储（离线/断网时自动降级回 LocalStorage） -->
@@ -1460,28 +1455,30 @@
     <nav class="navbar">
         <div class="navbar-left">
             <span class="logo">📖</span>
-            <span class="workspace-name" id="workspaceName" role="button" tabindex="0" title="点击重命名工作台" aria-label="重命名工作台" onclick="showModal('重命名工作台')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showModal('重命名工作台');}">我的奇幻世界</span>
+            <span class="workspace-name" id="workspaceName" onclick="showModal('重命名工作台')">我的奇幻世界</span>
             <span class="badge">v1.1</span>
         </div>
         <div class="navbar-center">
-            <button type="button" class="btn btn-primary btn-sm" onclick="handleNewWorkspace()">📂 新建</button>
-            <button type="button" class="btn btn-sm" onclick="handleSaveWorkspace()">💾 保存配置</button>
-            <button type="button" class="btn btn-sm" onclick="handleLoadWorkspace()">📂 读取配置</button>
+            <button class="btn btn-primary btn-sm" onclick="handleNewWorkspace()">📂 新建</button>
+            <button class="btn btn-sm" onclick="handleSaveWorkspace()">💾 保存配置</button>
+            <button class="btn btn-sm" onclick="handleLoadWorkspace()">📂 读取配置</button>
             <span class="badge" style="margin-left:4px;">工作台</span>
         </div>
         <div class="navbar-right">
-            <select class="select-styled" id="apiSelect" onchange="switchApi(this.value)" title="选择 API 配置"
-                aria-label="选择 API 配置" style="max-width:140px;"></select>
-            <button type="button" class="btn btn-sm" onclick="showModal('API 配置管理')" title="API 管理" aria-label="API 配置管理">⚙️</button>
+            <select class="select-styled" id="apiSelect" onchange="switchApi(this.value)"
+                style="max-width:140px;"></select>
+            <button class="btn btn-sm" onclick="showModal('API 配置管理')" title="API 管理">⚙️</button>
 
-            <select class="select-styled" id="promptSelect" onchange="switchPrompt(this.value)" title="选择提示词预设"
-                aria-label="选择提示词预设" style="max-width:130px;"></select>
-            <button type="button" class="btn btn-sm" onclick="showModal('提示词管理')" title="提示词管理" aria-label="提示词管理">⚙️</button>
+            <select class="select-styled" id="promptSelect" onchange="switchPrompt(this.value)"
+                style="max-width:130px;"></select>
+            <button class="btn btn-sm" onclick="showModal('提示词管理')" title="提示词管理">⚙️</button>
+            <button class="btn btn-sm" onclick="showFormatLearnerModal()" title="自定义格式学习与复刻">🎓</button>
+            <button class="btn btn-sm" onclick="showDatabaseModal()" title="全局知识数据库 (RAG Reference)">🗄️</button>
 
-            <button type="button" class="icon-btn" onclick="showModal('📋 调用日志')" title="调用日志" aria-label="调用日志">📋</button>
-            <button type="button" class="icon-btn" onclick="toggleChatPanel()" title="AI 助手" aria-label="AI 助手">💬</button>
-            <button type="button" class="icon-btn" onclick="toggleTheme()" title="切换亮色/暗色主题" aria-label="切换亮色/暗色主题" id="themeToggleBtn">🌙</button>
-            <button type="button" class="icon-btn" onclick="showModal('⚙️ 全局设置')" title="设置" aria-label="全局设置">⚙️</button>
+            <button class="icon-btn" onclick="showModal('📋 调用日志')" title="调用日志">📋</button>
+            <button class="icon-btn" onclick="toggleChatPanel()" title="AI 助手">💬</button>
+            <button class="icon-btn" onclick="toggleTheme()" title="切换亮色/暗色主题" id="themeToggleBtn">🌙</button>
+            <button class="icon-btn" onclick="showModal('⚙️ 全局设置')" title="设置">⚙️</button>
         </div>
     </nav>
 
@@ -1491,14 +1488,12 @@
         <aside class="sidebar-left" id="worldbookList">
             <div class="section-title">📚 世界书</div>
             <div style="display: flex; gap: 4px; width: 100%;">
-                <button type="button" class="btn btn-primary btn-sm" style="flex: 1; justify-content:center;"
+                <button class="btn btn-primary btn-sm" style="flex: 1; justify-content:center;"
                     onclick="showModal('新建世界书')">＋ 新建</button>
-                <button type="button" class="btn btn-sm" style="flex: 1; justify-content:center;" onclick="handleImportWorldbook()"
+                <button class="btn btn-sm" style="flex: 1; justify-content:center;" onclick="handleImportWorldbook()"
                     title="导入本地 JSON">📥 导入</button>
-                <button type="button" class="btn btn-sm" style="flex: 1; justify-content:center;" onclick="refreshAll()"
-                    title="刷新界面（无需刷新网页）">🔄</button>
             </div>
-            <button type="button" class="btn btn-sm" style="width: 100%; justify-content:center; margin-top: 4px;"
+            <button class="btn btn-sm" style="width: 100%; justify-content:center; margin-top: 4px;"
                 onclick="exportWorldbook()" title="导出当前选中世界书">📤 导出当前世界书</button>
 
             <div id="wbContainer" style="display:flex;flex-direction:column;gap:4px;margin-top:4px;"></div>
@@ -1524,7 +1519,7 @@
             <!-- 🏷️ 标签分类筛选 -->
             <div class="tag-filter-wrapper">
                 <span class="tag-filter-label">🏷️ 标签分类:</span>
-                <select id="tag-filter-select" class="tag-filter-select" onchange="renderEntries()" title="标签分类筛选" aria-label="标签分类筛选">
+                <select id="tag-filter-select" class="tag-filter-select" onchange="renderEntries()">
                     <option value="all">🌐 全部条目 (All)</option>
                     <option value="char">👤 人物 (Characters)</option>
                     <option value="loc">📍 地点 (Locations)</option>
@@ -1535,11 +1530,11 @@
                 </select>
             </div>
             <div class="toolbar">
-                <button type="button" class="btn btn-primary btn-sm" onclick="handleNewEntry()" title="新建条目">➕ 新建</button>
-                <button type="button" class="btn btn-sm" onclick="openGraph()" title="开启星图：可视化当前世界书条目关联" style="background: var(--bg-elevated); border: 1px solid var(--accent);">🌐 开启星图</button>
-                <button type="button" class="icon-btn" onclick="showModal('🔍 触发预览')" title="触发扫描预览" aria-label="触发扫描预览">🔍</button>
-                <button type="button" class="icon-btn" onclick="showModal('✨ 批量生成')" title="批量生成" aria-label="批量生成">✨</button>
-                <button type="button" class="icon-btn" onclick="showModal('🧠 智能调优')" title="全局调优" aria-label="全局调优">🧠</button>
+                <button class="btn btn-primary btn-sm" onclick="handleNewEntry()" title="新建条目">➕ 新建</button>
+                <button class="btn btn-sm" onclick="openGraph()" title="开启星图：可视化当前世界书条目关联" style="background: var(--bg-elevated); border: 1px solid var(--accent);">🌐 开启星图</button>
+                <button class="icon-btn" onclick="showModal('🔍 触发预览')" title="触发扫描预览">🔍</button>
+                <button class="icon-btn" onclick="showModal('✨ 批量生成')" title="批量生成">✨</button>
+                <button class="icon-btn" onclick="showModal('🧠 智能调优')" title="全局调优">🧠</button>
             </div>
             <div id="entryContainer" style="display:flex;flex-direction:column;gap:4px;"></div>
         </aside>
@@ -1550,32 +1545,41 @@
         </main>
     </div>
     <div id="chatPanel" class="chat-panel">
+        <!-- 头部：头像 + 标题 + 模式徽章 + 关闭 -->
         <div class="chat-header">
             <div class="chat-header-left">
                 <span class="chat-header-avatar">💬</span>
                 <span class="chat-header-title">设定交流助手</span>
                 <span class="chat-header-badge" id="chatStatusBadge">读写</span>
             </div>
-            <button type="button" class="icon-btn" onclick="toggleChatPanel()" title="关闭" aria-label="关闭聊天面板">✕</button>
+            <button class="icon-btn" onclick="toggleChatPanel()" title="关闭">✕</button>
         </div>
+
+        <!-- 主操作行 -->
         <div class="chat-toolbar">
-            <button type="button" class="btn btn-primary btn-sm" onclick="createNewChat()" title="创建新对话">＋ 新对话</button>
-            <button type="button" class="btn btn-sm" onclick="toggleChatHistory()" title="查看历史对话">📚 历史</button>
+            <button class="btn btn-primary btn-sm" onclick="createNewChat()" title="创建新对话">＋ 新对话</button>
+            <button class="btn btn-sm" onclick="toggleChatHistory()" title="查看历史对话">📚 历史</button>
             <span class="chat-session-title" id="chatSessionTitle">新对话</span>
         </div>
+
+        <!-- 次级操作行 -->
         <div class="chat-toolbar-sub">
-            <button type="button" class="btn btn-sm" onclick="clearChat()" title="清空当前对话">🧹 清空</button>
-            <button type="button" class="btn btn-sm" onclick="goBackChat()" title="返回上一轮">↩️ 回退</button>
-            <button type="button" class="btn btn-sm" onclick="editLastChat()" title="修改上一轮并重发">✏️ 改上轮</button>
-            <button type="button" class="btn btn-sm" onclick="viewLastChatDetails()" title="查看最近一条AI回复的完整内容与隐藏信息">🕵️ 详情</button>
+            <button class="btn btn-sm" onclick="clearChat()" title="清空当前对话">🧹 清空</button>
+            <button class="btn btn-sm" onclick="goBackChat()" title="返回上一轮">↩️ 回退</button>
+            <button class="btn btn-sm" onclick="editLastChat()" title="修改上一轮并重发">✏️ 改上轮</button>
+            <button class="btn btn-sm" onclick="viewLastChatDetails()" title="查看最近一条AI回复的完整内容与隐藏信息">🕵️ 详情</button>
             <span class="chat-toolbar-spacer"></span>
-            <button type="button" class="btn btn-sm chat-settings-toggle" id="chatSettingsToggle" onclick="toggleChatSettings()" title="展开/收起设置">⚙️ 设置</button>
+            <button class="btn btn-sm chat-settings-toggle" id="chatSettingsToggle" onclick="toggleChatSettings()" title="展开/收起设置">⚙️ 设置</button>
         </div>
+
+        <!-- 历史记录 -->
         <div class="chat-history-panel" id="chatHistoryPanel"></div>
+
+        <!-- 设置区（可折叠）：读写模式 / 注入预设 / 微调规则 -->
         <div class="chat-settings" id="chatSettings">
             <div class="chat-setting-row">
                 <label class="chat-switch">
-                    <input type="checkbox" id="ai-modify-toggle" checked aria-label="读写模式" onchange="chatAllowModify=this.checked;updateChatModeBadge();saveToLocal();" />
+                    <input type="checkbox" id="ai-modify-toggle" checked onchange="chatAllowModify=this.checked;updateChatModeBadge();saveToLocal();" />
                     <span class="chat-switch-slider"></span>
                 </label>
                 <div class="chat-setting-text">
@@ -1585,7 +1589,7 @@
             </div>
             <div class="chat-setting-row">
                 <label class="chat-switch">
-                    <input type="checkbox" id="chatUsePresetCheck" aria-label="注入提示词预设" onchange="chatUsePreset=this.checked;saveToLocal();" />
+                    <input type="checkbox" id="chatUsePresetCheck" onchange="chatUsePreset=this.checked;saveToLocal();" />
                     <span class="chat-switch-slider"></span>
                 </label>
                 <div class="chat-setting-text">
@@ -1602,13 +1606,17 @@
                     placeholder="在这里输入系统规则以微调 AI 的回答风格..."></textarea>
             </div>
         </div>
+
+        <!-- 消息区 -->
         <div class="chat-messages" id="chatMessages">
             <div class="text-muted text-sm" style="text-align:center; padding:20px;">欢迎使用对话助手！当前选中的条目内容会自动作为上下文附带。</div>
         </div>
+
+        <!-- 输入区 -->
         <div class="chat-input-area">
             <textarea id="chatInput" placeholder="输入问题 (Enter发送, Shift+Enter换行)"
                 onkeydown="handleChatKeyDown(event)"></textarea>
-            <button type="button" class="btn btn-primary" id="chatSendBtn" onclick="sendChatMessage()">发送</button>
+            <button class="btn btn-primary" id="chatSendBtn" onclick="sendChatMessage()">发送</button>
         </div>
     </div>
     <!-- ===== 模态框 ===== -->
@@ -1617,15 +1625,14 @@
             <div class="modal-title" id="modalTitle">标题</div>
             <div class="modal-body" id="modalBody"></div>
             <div class="modal-footer">
-                <button type="button" class="btn" onclick="closeModal()">取消</button>
-                <button type="button" class="btn btn-primary" id="modalConfirmBtn" onclick="handleModalConfirm()">确认</button>
+                <button class="btn" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" id="modalConfirmBtn" onclick="handleModalConfirm()">确认</button>
             </div>
         </div>
     </div>
 
     <script>
-// ===== main.js =====
-// ============================================================
+        // ============================================================
         //  全局状态
         // ============================================================
         let worldbooks = [{
@@ -1638,6 +1645,8 @@
                 }
             }
         }];
+
+        let knowledgeDatabase = []; // 📚 全局知识数据库（静态挂载的底层参考资料，平行于世界书）
 
         let apiConfigs = {
             'cfg1': { name: 'GPT-4 生产', api_base: 'https://api.openai.com/v1', api_key: '', model: 'gpt-4-turbo', max_tokens: 4096, temperature: 0.7 },
@@ -1740,7 +1749,9 @@
                 chatRules: chatRules,
                 chatUsePreset: typeof chatUsePreset !== 'undefined' ? chatUsePreset : false,
                 entrySortMode: typeof entrySortMode !== 'undefined' ? entrySortMode : 'manual',
-                chatAllowModify: toggleElement ? toggleElement.checked : chatAllowModify
+                chatAllowModify: toggleElement ? toggleElement.checked : chatAllowModify,
+                currentLearnedFormat: window.currentLearnedFormat || null, // 自定义格式学习规则
+                knowledgeDatabase: knowledgeDatabase // 全局知识数据库
             };
         }
 
@@ -2012,6 +2023,14 @@
                         const toggle = document.getElementById('ai-modify-toggle');
                         if (toggle) toggle.checked = chatAllowModify;
                     }
+                    // 恢复自定义格式学习规则
+                    if (data.currentLearnedFormat) {
+                        window.currentLearnedFormat = data.currentLearnedFormat;
+                    }
+                    // 恢复全局知识数据库
+                    if (Array.isArray(data.knowledgeDatabase)) {
+                        knowledgeDatabase = data.knowledgeDatabase;
+                    }
                 }
             } catch (e) {
                 console.error('读取本地核心数据库失败:', e);
@@ -2123,7 +2142,7 @@
                         modelListContainer.style.display = 'block';
                         if (modelCount) modelCount.textContent = models.length;
                         modelChips.innerHTML = models.map(m =>
-                            `<span class="model-chip" role="button" tabindex="0" title="点击填入" onclick="document.getElementById('apiModelInput').value='${escHtml(m)}'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('apiModelInput').value='${escHtml(m)}'}">${escHtml(m)}</span>`
+                            `<span class="model-chip" title="点击填入" onclick="document.getElementById('apiModelInput').value='${escHtml(m)}'">${escHtml(m)}</span>`
                         ).join('');
                     }
                     showToast(`成功获取 ${models.length} 个可用模型`);
@@ -2219,15 +2238,14 @@ ${extraContext.trim()}`;
                     });
                 }
 
-                // 收集当前预设中所有“已启用”的 blocks
+                // 收集当前预设中所有“已启用”的 blocks（自适应全局请求构建引擎：宏渲染 + 语法特征学习 + 按 Order 排序 + 合并连续 System 块）
                 if (activePreset && Array.isArray(activePreset.blocks)) {
-                    activePreset.blocks.filter(b => b && b.enabled).forEach(b => {
-                        let content = b.content || '';
-                        // 填充用户块中的占位符
-                        content = content.replace(/\{topic\}/g, entry ? entry.keys.join(', ') : '');
-                        content = content.replace(/\{context\}/g, extraContext || '');
-                        apiMessages.push({ role: b.role, content: content });
-                    });
+                    // 预处理：先填充用户块中的 {topic}/{context} 占位符，再交给自适应引擎统一宏渲染/语法学习/排序合并
+                    const preparedBlocks = activePreset.blocks.map(b => ({
+                        ...b,
+                        content: String(b.content || '').replace(/\{topic\}/g, entry ? entry.keys.join(', ') : '').replace(/\{context\}/g, extraContext || '')
+                    }));
+                    apiMessages.push(...assembleAdaptivePromptMessages(preparedBlocks, '', ''));
                 }
             }
 
@@ -2247,6 +2265,18 @@ ${extraContext.trim()}`;
                     case '自定义编辑': userMessage = `根据指令修改设定。不含解释。\n【指令】：${extraContext}\n【原内容】：\n${entry ? entry.content : ''}`; break;
                     default: userMessage = extraContext;
                 }
+                // === 📚 数据库知识注入引擎：将已开启的知识库条目作为底层世界观规则注入 ===
+                const activeDatabaseItems = knowledgeDatabase.filter(item => item && item.enabled);
+                if (activeDatabaseItems.length > 0) {
+                    let dbContextStr = activeDatabaseItems.map(item => `[资料库:${item.name}]\n${item.content}`).join('\n\n');
+                    const dbPrompt = `\n\n【⚠️ 全局数据库参考指南】\n以下是本世界观的底层数据库资料。你在进行任何设定创作、改写或逻辑推演时，必须严格参考以下资料，确保数据来源与技术路线的绝对统一：\n${dbContextStr}`;
+                    apiMessages.push({ role: 'system', content: dbPrompt });
+                }
+                // 🎓 近因效应注入：将已学习的自定义格式约束作为最高优先级 System 指令植入（紧贴用户消息）
+                const learnedGuide = buildLearnedFormatInstructions();
+                if (learnedGuide) {
+                    apiMessages.push({ role: 'system', content: learnedGuide });
+                }
                 apiMessages.push({ role: 'user', content: userMessage });
             }
 
@@ -2263,8 +2293,6 @@ ${extraContext.trim()}`;
                     messages: apiMessages,
                     stream: !!config.stream // 核心指令：告诉 AI 用流式传输
                 };
-                // 🚀 流式 Token 统计：请求流末附带 usage（修复日志显示 0 tk）
-                if (config.stream) payload.stream_options = { include_usage: true };
                 // 🚀 核心注入：挂载工具箱（原生 Function Calling / Tool Calling）
                 if (tools && Array.isArray(tools)) payload.tools = tools;
                 // 🚀 注入高阶采样参数（仅在用户配置了时才加入，避免不兼容接口报错）
@@ -2302,61 +2330,48 @@ ${extraContext.trim()}`;
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder('utf-8');
                     let buffer = '';
-                    let finishReason = ''; // 记录服务端结束原因（length=因 max_tokens 截断）
-                    // 🚀 修复截断：单行 SSE data 解析器（循环内 + 流末 flush 共用）
-                    const processDataLine = (line) => {
-                        const trimmed = line.trim();
-                        if (!trimmed || !trimmed.startsWith('data:')) return;
-                        if (trimmed.includes('[DONE]')) return;
-                        try {
-                            const dataObj = JSON.parse(trimmed.replace('data:', '').trim());
-                            // 流式 Token 统计：部分接口在结尾 data 行（choices 为空数组）携带 usage
-                            if (dataObj.usage) {
-                                if (dataObj.usage.total_tokens) totalTokens = dataObj.usage.total_tokens;
-                                else if (typeof dataObj.usage.prompt_tokens === 'number' && typeof dataObj.usage.completion_tokens === 'number') {
-                                    totalTokens = dataObj.usage.prompt_tokens + dataObj.usage.completion_tokens;
-                                }
-                            }
-                            const ch0 = dataObj.choices && dataObj.choices[0] ? dataObj.choices[0] : {};
-                            if (ch0.finish_reason) finishReason = ch0.finish_reason;
-                            const delta = ch0.delta || {};
-                            // 1. 常规文本流：逐块拼接并触发回调（打字机效果，告别“死机等待”）
-                            const deltaContent = delta.content || '';
-                            if (deltaContent) {
-                                rawContent += deltaContent;
-                                if (onStreamChunk) onStreamChunk(rawContent, false);
-                            }
-                            // 2. 原生函数调用流 (Function Calling)：实时组装被切成碎片的参数 JSON
-                            if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
-                                delta.tool_calls.forEach(tc => {
-                                    const idx = tc.index !== undefined ? tc.index : 0;
-                                    if (!toolCallsAcc[idx]) toolCallsAcc[idx] = { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } };
-                                    if (tc.function && tc.function.name) toolCallsAcc[idx].function.name += tc.function.name;
-                                    if (tc.function && tc.function.arguments) {
-                                        toolCallsAcc[idx].function.arguments += tc.function.arguments;
-                                        // 触发 UI 提示正在调用函数（文本为空时显示动态装配动画）
-                                        if (onStreamChunk) onStreamChunk(rawContent, true);
-                                    }
-                                });
-                            }
-                        } catch (err) {
-                            console.warn('流式解析跳过无法解析的片段:', trimmed);
-                        }
-                    };
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) break;
                         buffer += decoder.decode(value, { stream: true });
+
                         // 按换行符切割，最后一段可能不完整留到下一轮
                         const lines = buffer.split('\n');
                         buffer = lines.pop() || '';
-                        for (const line of lines) processDataLine(line);
-                    }
-                    // 🚀 核心修复：流末 flush——若最后一块数据无换行符结尾，buffer 中残留的结尾内容必须补解析，否则回复尾部被截断
-                    if (buffer.trim()) processDataLine(buffer);
-                    // 若服务端因达到 max_tokens 上限而截断，给出明确提示
-                    if (finishReason === 'length') {
-                        showToast('⚠️ 回复因达到 max_tokens 上限被截断，请在 API 配置中调大"最大回复长度"');
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (!trimmed) continue;
+                            // 忽略流结束的标识符
+                            if (trimmed.includes('[DONE]')) continue;
+                            // 解析前缀为 "data: " 的标准 SSE 格式
+                            if (trimmed.startsWith('data:')) {
+                                try {
+                                    const dataObj = JSON.parse(trimmed.replace('data:', '').trim());
+                                    const delta = dataObj.choices && dataObj.choices[0] ? (dataObj.choices[0].delta || {}) : {};
+                                    // 1. 常规文本流：逐块拼接并触发回调（打字机效果，告别“死机等待”）
+                                    const deltaContent = delta.content || '';
+                                    if (deltaContent) {
+                                        rawContent += deltaContent;
+                                        if (onStreamChunk) onStreamChunk(rawContent, false);
+                                    }
+                                    // 2. 原生函数调用流 (Function Calling)：实时组装被切成碎片的参数 JSON
+                                    if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
+                                        delta.tool_calls.forEach(tc => {
+                                            const idx = tc.index !== undefined ? tc.index : 0;
+                                            if (!toolCallsAcc[idx]) toolCallsAcc[idx] = { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } };
+                                            if (tc.function && tc.function.name) toolCallsAcc[idx].function.name += tc.function.name;
+                                            if (tc.function && tc.function.arguments) {
+                                                toolCallsAcc[idx].function.arguments += tc.function.arguments;
+                                                // 触发 UI 提示正在调用函数（文本为空时显示动态装配动画）
+                                                if (onStreamChunk) onStreamChunk(rawContent, true);
+                                            }
+                                        });
+                                    }
+                                } catch (err) {
+                                    console.warn('流式解析跳过无法解析的片段:', trimmed);
+                                }
+                            }
+                        }
                     }
                 } else {
                     // 【传统非流式模式】
@@ -2368,11 +2383,6 @@ ${extraContext.trim()}`;
                     // 非流式也可能直接返回完整的工具调用
                     if (msg0.tool_calls && Array.isArray(msg0.tool_calls)) {
                         msg0.tool_calls.forEach((tc, idx) => { toolCallsAcc[idx] = tc; });
-                    }
-                    // 🚀 非流式同样检测 max_tokens 截断
-                    const fr = data.choices[0].finish_reason;
-                    if (fr === 'length') {
-                        showToast('⚠️ 回复因达到 max_tokens 上限被截断，请在 API 配置中调大"最大回复长度"');
                     }
                 }
                 rawContent = String(rawContent || '').trim();
@@ -3066,8 +3076,8 @@ ${extraContext.trim()}`;
                         <div class="meta">${Object.keys(wb.entries).length} 条目</div>
                     </div>
                     <div class="actions">
-                        <button onclick="event.stopPropagation();renameWorldbook(${wb.uid})" title="重命名世界书" aria-label="重命名世界书">✏️</button>
-                        <button onclick="event.stopPropagation();if(confirm('删除此世界书？'))deleteWorldbook(${wb.uid})" title="删除世界书" aria-label="删除世界书">🗑️</button>
+                        <button onclick="event.stopPropagation();renameWorldbook(${wb.uid})" title="重命名世界书">✏️</button>
+                        <button onclick="event.stopPropagation();if(confirm('删除此世界书？'))deleteWorldbook(${wb.uid})" title="删除世界书">🗑️</button>
                     </div>
                 </div>
             `).join('');
@@ -3217,17 +3227,6 @@ ${extraContext.trim()}`;
             document.getElementById('searchInput').value = searchQuery;
             document.getElementById('apiSelect').value = currentApiId;
             document.getElementById('promptSelect').value = currentPromptId;
-        }
-
-        // 🚀 整体刷新：强制落盘 + 重渲染全部面板（等效于不刷新网页的"软刷新"）
-        function refreshAll() {
-            try { _saveToLocalCore(); } catch (e) {}   // 先强制保存，避免丢失未落盘的修改
-            renderDropdowns();
-            renderAll();
-            renderChatSessions();
-            renderChatMessages();
-            updateChatModeBadge();
-            showToast('🔄 已刷新界面');
         }
 
         // ==========================================
@@ -3514,7 +3513,7 @@ ${extraContext.trim()}`;
                     <div class="chat-history-item${active}" onclick="switchChat(${c.id})">
                         <span class="chat-history-title">${escHtml(c.title || '新对话')} <span class="chat-history-count">(${c.messages.length})</span></span>
                         <span class="chat-history-time">${time}</span>
-                        <button class="icon-btn" title="删除该对话" aria-label="删除该对话" onclick="event.stopPropagation();deleteChat(${c.id})">🗑️</button>
+                        <button class="icon-btn" title="删除该对话" onclick="event.stopPropagation();deleteChat(${c.id})">🗑️</button>
                     </div>
                 `;
             }).join('');
@@ -4039,105 +4038,164 @@ ${extraContext.trim()}`;
             }
         }
         // ============================================================
-        //  导入提示词预设 (高兼容 SillyTavern Prompt Manager / Context Template)
+        //  酒馆预设万能导入引擎 + 导入处理（多层防御 / 字段降级映射）
         // ============================================================
-        function handleImportPromptPreset() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.json';
+        /**
+         * 酒馆预设万能导入引擎
+         * 支持 Prompt Manager, Context Template, Instruct 以及 TextGen 采样配置的提取
+         */
+        function importSillyTavernPreset(jsonData) {
+            try {
+                let data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+                let newBlocks = [];
+                let globalSettings = {};
 
-            input.onchange = function (e) {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = function (ev) {
-                    try {
-                        const data = JSON.parse(ev.target.result);
-                        let newBlocks = [];
-
-                        // 探测 1：纯数组 / 标准 blocks 数组
-                        if (Array.isArray(data)) {
-                            newBlocks = data;
-                        } else if (data.blocks && Array.isArray(data.blocks)) {
-                            newBlocks = data.blocks;
-                        }
-                        // 探测 2：酒馆 Prompt Manager 预设格式 (通常包含 prompts 数组)
-                        else if (data.prompts && Array.isArray(data.prompts)) {
-                            newBlocks = data.prompts.map((p, index) => ({
-                                name: p.name || p.identifier || `导入规则块 ${index + 1}`,
-                                state: p.enabled !== false,
-                                role: p.role || 'system',
-                                content: p.content || p.text || p.value || ''
-                            }));
-                        }
-                        // 探测 3：酒馆 Context Template / Instruct 扁平化格式
-                        else if (data.system_prompt || data.story_string || data.system || data.user) {
-                            if (data.system_prompt || data.system) {
-                                newBlocks.push({ name: "系统指令 (System)", state: true, role: "system", content: data.system_prompt || data.system });
-                            }
-                            if (data.story_string) {
-                                newBlocks.push({ name: "故事主轴 (Story String)", state: true, role: "system", content: data.story_string });
-                            }
-                            if (data.post_history_instructions) {
-                                newBlocks.push({ name: "历史后指令 (Post-History)", state: true, role: "system", content: data.post_history_instructions });
-                            }
-                            if (data.user || data.user_prompt) {
-                                newBlocks.push({ name: "用户越狱 (User)", state: true, role: "user", content: data.user || data.user_prompt });
-                            }
-                        }
-                        // 探测 4：某些旧版导出格式 (data 数组)
-                        else if (data.data && Array.isArray(data.data)) {
-                            newBlocks = data.data;
-                        }
-                        // 兜底拦截
-                        else {
-                            throw new Error("未能识别有效的提示词结构。请确保导入的是合法的 SillyTavern JSON 预设。");
-                        }
-
-                        // 统一清洗：state → enabled，补全 uid/name/role/content，过滤空内容
-                        newBlocks = newBlocks
-                            .map((b, index) => ({
-                                uid: Date.now() + index,
-                                name: b.name || `规则区块 ${index + 1}`,
-                                role: String(b.role || 'system').toLowerCase(),
-                                enabled: b.state !== undefined ? b.state : (b.enabled !== undefined ? b.enabled : true),
-                                content: b.content || b.text || b.prompt || b.value || ''
-                            }))
-                            .filter(b => b.content && b.content.trim() !== '');
-
-                        if (newBlocks.length === 0) {
-                            throw new Error("文件解析成功，但未能提取到任何有效的文本内容。");
-                        }
-
-                        // 合并到当前预设（而非新建）
-                        const preset = promptPresets[currentPromptId];
-                        if (preset) {
-                            if (!Array.isArray(preset.blocks)) preset.blocks = [];
-                            preset.blocks = preset.blocks.concat(newBlocks);
-                        } else {
-                            const presetId = 'prompt_' + Date.now();
-                            promptPresets[presetId] = { name: '导入的预设', blocks: newBlocks };
-                            currentPromptId = presetId;
-                        }
-
-                        saveToLocal();
-                        renderDropdowns();
-                        showToast(`✅ 导入成功！已识别 ${newBlocks.length} 个规则块并合并到当前预设。`);
-
-                        // 动态重载模态框内容以刷新列表与块编辑器
-                        if (document.getElementById('modalTitle') && document.getElementById('modalTitle').textContent.includes('提示词管理')) {
-                            showModal('提示词管理');
-                        }
-
-                    } catch (err) {
-                        console.error(err);
-                        alert(`❌ 提示词导入失败: ${err.message}`);
+                // 1. 提取采样控制参数（如果 JSON 包含了 API 设置）
+                const sampleKeys = ['temperature', 'top_p', 'top_k', 'frequency_penalty', 'presence_penalty', 'repetition_penalty', 'max_tokens'];
+                sampleKeys.forEach(key => {
+                    if (data[key] !== undefined) {
+                        globalSettings[key] = data[key];
                     }
+                });
+
+                // 2. 提取全局指令序列 (Instruct Sequences)
+                ['input_sequence', 'output_sequence', 'system_sequence', 'macro_custom'].forEach(seqKey => {
+                    if (data[seqKey] !== undefined) {
+                        globalSettings[seqKey] = data[seqKey];
+                    }
+                });
+
+                // 3. 结构识别 - 模式 A：现代 Prompt Manager (prompts 或 blocks 数组)
+                const rawBlocks = data.prompts || data.blocks || (Array.isArray(data) ? data : null);
+
+                if (rawBlocks && Array.isArray(rawBlocks)) {
+                    rawBlocks.forEach((item, index) => {
+                        if (!item) return;
+                        const name = item.name || item.identifier || item.label || `规则块 #${index + 1}`;
+                        const content = item.content || item.text || item.value || '';
+                        const role = (item.role || (item.system_prompt ? 'system' : 'user')).toLowerCase();
+                        // 兼容 state (0/1/true/false) 或 enabled 字段
+                        const enabled = item.enabled !== undefined ? Boolean(item.enabled) : (item.state !== undefined ? Boolean(item.state) : true);
+
+                        if (content.trim() || name) {
+                            newBlocks.push({
+                                id: 'blk_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                                name: name,
+                                role: ['system', 'user', 'assistant'].includes(role) ? role : 'system',
+                                content: content,
+                                enabled: enabled,
+                                order: item.order !== undefined ? item.order : index * 10
+                            });
+                        }
+                    });
+                }
+                // 结构识别 - 模式 B：经典 Context Template (扁平化 Key-Value 结构)
+                else if (typeof data === 'object') {
+                    let orderCounter = 0;
+
+                    // 匹配核心字段映射
+                    const legacyMappings = [
+                        { key: 'system_prompt', name: '全局系统提示 (System Prompt)', role: 'system' },
+                        { key: 'main', name: '主提示词 (Main Prompt)', role: 'system' },
+                        { key: 'story_string', name: '故事主轴 (Story String)', role: 'system' },
+                        { key: 'jailbreak', name: '越狱/规则限制 (Jailbreak)', role: 'system' },
+                        { key: 'post_history_instructions', name: '历史后指令 (PHI / D0)', role: 'user' },
+                        { key: 'impersonation_prompt', name: '拟人/模仿提示', role: 'system' }
+                    ];
+
+                    legacyMappings.forEach(mapping => {
+                        if (data[mapping.key] && typeof data[mapping.key] === 'string' && data[mapping.key].trim()) {
+                            newBlocks.push({
+                                id: 'blk_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                                name: mapping.name,
+                                role: mapping.role,
+                                content: data[mapping.key],
+                                enabled: true,
+                                order: orderCounter
+                            });
+                            orderCounter += 10;
+                        }
+                    });
+                }
+
+                if (newBlocks.length === 0) {
+                    throw new Error('未能识别到有效的预设规则块，请检查文件结构。');
+                }
+
+                // 4. 将提取出的全局设置同步更新至 API 控制台参数（若存在）
+                if (Object.keys(globalSettings).length > 0 && typeof apiConfigs !== 'undefined' && apiConfigs[currentApiId]) {
+                    Object.assign(apiConfigs[currentApiId], globalSettings);
+                    if (typeof saveToLocal === 'function') saveToLocal();
+                }
+
+                return {
+                    success: true,
+                    blocks: newBlocks,
+                    settings: globalSettings,
+                    count: newBlocks.length
                 };
-                reader.readAsText(file);
+
+            } catch (err) {
+                console.error('酒馆预设解析失败:', err);
+                return {
+                    success: false,
+                    error: err.message
+                };
+            }
+        }
+
+        /**
+         * 导入预设文件的事件响应
+         * 支持无参调用自动弹出文件选择框（兼容 HTML onclick），或直接传入 file input 元素
+         */
+        async function handleImportPromptPreset(fileInput) {
+            // 无参调用：动态创建并触发文件选择框（对应 HTML 中 onclick="handleImportPromptPreset()"）
+            if (!fileInput) {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.style.display = 'none';
+                document.body.appendChild(input);
+                input.onchange = () => { handleImportPromptPreset(input); document.body.removeChild(input); };
+                input.click();
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function (e) {
+                try {
+                    const result = importSillyTavernPreset(e.target.result);
+
+                    if (!result.success) {
+                        showToast('❌ 预设导入失败: ' + result.error);
+                        return;
+                    }
+
+                    // 挂载到当前预设管理集中（不存在则新建，以文件名命名）
+                    if (!promptPresets[currentPromptId]) {
+                        const presetId = 'prompt_' + Date.now();
+                        promptPresets[presetId] = { name: file.name.replace(/\.[^/.]+$/, ""), blocks: [] };
+                        currentPromptId = presetId;
+                    }
+
+                    // 覆盖 Blocks（遵循万能导入引擎产出的标准结构）
+                    promptPresets[currentPromptId].blocks = result.blocks;
+
+                    // 刷新 UI 与本地持久化
+                    if (typeof initBlockEditor === 'function') initBlockEditor();
+                    if (typeof renderBlockEditor === 'function') renderBlockEditor();
+                    if (typeof renderDropdowns === 'function') renderDropdowns();
+                    if (typeof saveToLocal === 'function') saveToLocal();
+
+                    showToast(`✅ 成功导入酒馆预设！共加载 ${result.count} 个规则模块。`);
+                } catch (err) {
+                    showToast('❌ 文件读取解析失败，非标准 JSON 数据');
+                }
             };
-            input.click();
+            reader.readAsText(file);
         }
 
         // ============================================================
@@ -4195,7 +4253,7 @@ ${extraContext.trim()}`;
                 ${editingBlocks.map((b, i) => `
                     <div style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;margin-bottom:6px;">
                         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                            <button class="btn btn-sm" type="button" onclick="togglePromptBlockExpand(${i}, this)" title="展开/收起内容" aria-label="展开/收起内容" style="flex:0 0 auto; padding:0 6px; line-height:1;">▸</button>
+                            <button class="btn btn-sm" type="button" onclick="togglePromptBlockExpand(${i}, this)" title="展开/收起内容" style="flex:0 0 auto; padding:0 6px; line-height:1;">▸</button>
                             <label style="display:flex; align-items:center; gap:4px; font-size:12px; color:var(--text-secondary); cursor:pointer; white-space:nowrap;">
                                 <input type="checkbox" style="width:auto;" ${b.enabled ? 'checked' : ''} onchange="updatePromptBlock(${i}, 'enabled', this.checked)" />
                                 启用
@@ -4206,9 +4264,9 @@ ${extraContext.trim()}`;
                             </select>
                             <input value="${escAttr(b.name)}" placeholder="区块名称" style="flex:1; min-width:90px; background:var(--bg-input);border:1px solid var(--border-color);border-radius:4px;padding:3px 6px;font-size:12px;color:var(--text-primary);" onchange="updatePromptBlock(${i}, 'name', this.value)" />
                             <span style="display:flex; gap:2px;">
-                                <button class="btn btn-sm" type="button" onclick="movePromptBlock(${i}, -1)" title="上移" aria-label="上移">↑</button>
-                                <button class="btn btn-sm" type="button" onclick="movePromptBlock(${i}, 1)" title="下移" aria-label="下移">↓</button>
-                                <button class="btn btn-sm btn-danger" type="button" onclick="removePromptBlock(${i})" title="删除区块" aria-label="删除区块">🗑️</button>
+                                <button class="btn btn-sm" type="button" onclick="movePromptBlock(${i}, -1)" title="上移">↑</button>
+                                <button class="btn btn-sm" type="button" onclick="movePromptBlock(${i}, 1)" title="下移">↓</button>
+                                <button class="btn btn-sm btn-danger" type="button" onclick="removePromptBlock(${i})" title="删除区块">🗑️</button>
                             </span>
                         </div>
                         <div class="block-body" data-block-body="${i}" style="display:none;">
@@ -4318,6 +4376,449 @@ ${extraContext.trim()}`;
                 console.error('导出预设失败:', err);
                 alert('导出失败: ' + err.message);
             }
+        }
+
+        // ============================================================
+        //  多模块预设 Prompt 组装引擎
+        // ============================================================
+        /**
+         * 将已勾选启用的 Blocks 编译为符合 API 规范的 Context 数组
+         * @param {Array} blocks 预设规则块列表
+         * @param {string} userMessage 末尾追加的用户消息（对话/指令）
+         * @param {string} currentWorldbookContext 注入到 {{worldbook}} 占位符的全局动态上下文
+         */
+        function assemblePresetMessages(blocks, userMessage = '', currentWorldbookContext = '') {
+            if (!blocks || !Array.isArray(blocks)) return [];
+
+            // 1. 过滤已启用的模块并按 Order 升序排序
+            const activeBlocks = blocks
+                .filter(b => b.enabled)
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+            let assembledMessages = [];
+            let systemContentBuffer = [];
+
+            activeBlocks.forEach(block => {
+                let content = block.content || '';
+
+                // 注入全局动态上下文（如果区块涉及世界书变量，可在此替换）
+                content = content.replace(/\{\{worldbook\}\}/g, currentWorldbookContext);
+
+                if (block.role === 'system') {
+                    systemContentBuffer.push(content);
+                } else {
+                    // 如果之前有积攒的 System 内容，先打包推入
+                    if (systemContentBuffer.length > 0) {
+                        assembledMessages.push({ role: 'system', content: systemContentBuffer.join('\n\n') });
+                        systemContentBuffer = [];
+                    }
+                    assembledMessages.push({ role: block.role, content: content });
+                }
+            });
+
+            // 追加剩余的 System 缓冲区
+            if (systemContentBuffer.length > 0) {
+                assembledMessages.push({ role: 'system', content: systemContentBuffer.join('\n\n') });
+            }
+
+            // 末尾追加当前用户发送的对话或指令
+            if (userMessage) {
+                assembledMessages.push({ role: 'user', content: userMessage });
+            }
+
+            return assembledMessages;
+        }
+
+        // ============================================================
+        //  预设语法特征检测 + 酒馆宏渲染 + 自适应全局请求构建引擎
+        // ============================================================
+        /**
+         * 预设语法与格式特征提取器
+         * 自动识别 Handlebars 模板标记、W++ 伪代码、XML 结构、Markdown 排版等特征，
+         * 并为后续 AI 请求生成格式约束指导（styleGuide）。
+         */
+        function detectPresetSyntax(presetBlocks) {
+            if (!presetBlocks || !Array.isArray(presetBlocks)) return { styleGuide: "", syntaxType: "standard" };
+
+            const fullText = presetBlocks.map(b => b.content || '').join('\n');
+            const features = [];
+
+            // 1. 检查 Handlebars / 逻辑条件宏
+            if (/\{\{#if[\s\S]*?\}\}/i.test(fullText) || /\{\{#[a-z]+[\s\S]*?\}\}/i.test(fullText)) {
+                features.push("使用了 Handlebars 逻辑条件语句（如 {{#if ...}}）");
+            }
+
+            // 2. 检查 W++ 规则语法 (例如: [Character("Name"){ Mind("Trait") }])
+            if (/\[\s*\w+\s*\([^)]*\)\s*\{[\s\S]*?\}\s*\]/i.test(fullText) || /[\w\s]+\s*::\s*[\w\s]+/i.test(fullText)) {
+                features.push("使用了 W++ / 结构化伪代码格式定义属性");
+            }
+
+            // 3. 检查 XML 规则标签 (例如: <system_instructions>...</system_instructions>)
+            if (/<([a-zA-Z0-9_]+)>[\s\S]*?<\/\1>/.test(fullText)) {
+                features.push("使用了 XML 标签包裹排版规则");
+            }
+
+            // 4. 检查 Markdown 强调排版 (例如: "对话", *动作*)
+            if (/"[^"]+"\s*,\s*\*[^*]+\*/.test(fullText) || /\*[^*]+\*\s*"[^"]+"/.test(fullText)) {
+                features.push("排版规范：对话使用双引号，动作与心理描写使用单/双星号包裹");
+            }
+
+            let styleGuide = "";
+            if (features.length > 0) {
+                styleGuide = `\n\n【预设格式与语法规范】\n当前预设包含以下排版/语法特征，请在生成内容或修改世界书条目时严格对齐此格式：\n- ` + features.join("\n- ");
+            }
+
+            return {
+                features: features,
+                styleGuide: styleGuide,
+                hasHandlebars: features.some(f => f.includes("Handlebars")),
+                hasWPlusPlus: features.some(f => f.includes("W++"))
+            };
+        }
+
+        /**
+         * 轻量级 Handlebars 与酒馆 Macro 自适应渲染器
+         * 对模板变量（如 {{user}}、{{char}}、{{#if ...}} 等）进行实时替换，避免保留裸代码导致 AI 误解。
+         */
+        function parseSillyTavernMacros(text, contextData = {}) {
+            if (!text || typeof text !== 'string') return '';
+
+            const { char = 'AI', user = 'User', scenario = '', personality = '', worldbookContext = '' } = contextData;
+
+            let result = text;
+
+            // 1. 简易处理 Handlebars {{#if key}} ... {{/if}} 语法（支持可选的 {{else}} 分支）
+            result = result.replace(/\{\{#if\s+([a-zA-Z0-9_]+)\}\}([\s\S]*?)(?:\{\{else\}\}([\s\S]*?))?\{\{\/if\}\}/g, (match, p1, p2, p3) => {
+                const keyVal = contextData[p1];
+                const isTrue = keyVal && keyVal.toString().trim() !== '' && keyVal !== false;
+                if (isTrue) {
+                    return p2;
+                } else {
+                    return p3 || '';
+                }
+            });
+
+            // 2. 替换常规酒馆宏
+            const macroMap = {
+                '{{char}}': char,
+                '{{user}}': user,
+                '{{scenario}}': scenario,
+                '{{personality}}': personality,
+                '{{worldbook}}': worldbookContext,
+                '{{lore}}': worldbookContext,
+                '{{trim}}': ''
+            };
+
+            Object.keys(macroMap).forEach(macro => {
+                const reg = new RegExp(macro.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                result = result.replace(reg, macroMap[macro]);
+            });
+
+            return result;
+        }
+
+        /**
+         * 组装带有“自适应格式学习”功能的 API 请求消息
+         * 在发送前自动注入检测到的格式与风格指南，确保大模型获得学习能力。
+         */
+        function assembleAdaptivePromptMessages(blocks, userMessage = '', worldbookContext = '', extraContextData = {}) {
+            if (!blocks || !Array.isArray(blocks)) return [];
+
+            // 1. 扫描当前预设的语法与风格特征
+            const activeBlocks = blocks.filter(b => b.enabled).sort((a, b) => (a.order || 0) - (b.order || 0));
+            const syntaxAnalysis = detectPresetSyntax(activeBlocks);
+
+            let assembledMessages = [];
+            let systemContentBuffer = [];
+
+            activeBlocks.forEach(block => {
+                // 自动清洗与宏渲染
+                let renderedContent = parseSillyTavernMacros(block.content || '', {
+                    worldbookContext: worldbookContext,
+                    ...extraContextData
+                });
+
+                if (block.role === 'system') {
+                    systemContentBuffer.push(renderedContent);
+                } else {
+                    if (systemContentBuffer.length > 0) {
+                        assembledMessages.push({ role: 'system', content: systemContentBuffer.join('\n\n') });
+                        systemContentBuffer = [];
+                    }
+                    assembledMessages.push({ role: block.role, content: renderedContent });
+                }
+            });
+
+            // 2. 将“语法与格式指引”注入到最顶部的 System 缓冲区中
+            if (syntaxAnalysis.styleGuide) {
+                systemContentBuffer.push(syntaxAnalysis.styleGuide);
+            }
+
+            if (systemContentBuffer.length > 0) {
+                assembledMessages.push({ role: 'system', content: systemContentBuffer.join('\n\n') });
+            }
+
+            // 3. 拼接对话消息
+            if (userMessage) {
+                assembledMessages.push({ role: 'user', content: userMessage });
+            }
+
+            return assembledMessages;
+        }
+
+        // ============================================================
+        //  自定义格式学习引擎 + 管理面板 + 请求注入
+        // ============================================================
+        /**
+         * 格式学习引擎：从用户示范文本中分析并提取排版与语法规则
+         */
+        function learnCustomFormat(sampleText) {
+            if (!sampleText || typeof sampleText !== 'string' || !sampleText.trim()) {
+                return null;
+            }
+
+            const text = sampleText.trim();
+            const learnedRules = {
+                sample: text,
+                features: [],
+                brackets: [],
+                syntaxType: 'Custom/Mixed',
+                templateSkeleton: ''
+            };
+
+            // 1. 提取符号包裹特征 (例如："对话", *动作*, <设定>, [属性])
+            const bracketPatterns = [
+                { type: '引号/对话', reg: /"([^"]+)"/g, example: '"内容"' },
+                { type: '星号/动作或强调', reg: /\*([^*]+)\*/g, example: '*内容*' },
+                { type: '尖括号/标签', reg: /<([^>]+)>/g, example: '<内容>' },
+                { type: '方括号/属性', reg: /\[([^\]]+)\]/g, example: '[内容]' },
+                { type: '花括号/宏或变量', reg: /\{([^}]+)\}/g, example: '{内容}' }
+            ];
+
+            bracketPatterns.forEach(p => {
+                if (p.reg.test(text)) {
+                    learnedRules.brackets.push(p.type);
+                    learnedRules.features.push(`特殊符号规范：使用 ${p.example} 来封装特定类型字段。`);
+                }
+            });
+
+            // 2. 检测结构类型 (W++, YAML, XML, 伪代码, 列表结构)
+            if (/\[\s*\w+\s*\([^)]*\)\s*\{[\s\S]*?\}\s*\]/i.test(text)) {
+                learnedRules.syntaxType = 'W++ / 经典角色卡结构';
+                learnedRules.features.push('使用 W++ 伪代码格式结构（如 [Type("Name"){ Key("Value") }]）。');
+            } else if (/^[a-zA-Z0-9_]+\s*:\s*.+/m.test(text)) {
+                learnedRules.syntaxType = 'Key-Value / YAML 风格';
+                learnedRules.features.push('使用冒号键值对（Key: Value）形式罗列属性。');
+            } else if (/<([a-zA-Z0-9_]+)>[\s\S]*?<\/\1>/.test(text)) {
+                learnedRules.syntaxType = 'XML 标签封装';
+                learnedRules.features.push('使用 XML 节点标签（如 <tag>...</tag>）划分段落。');
+            }
+
+            // 3. 提取模版骨架 (替换具体值为占位符)
+            learnedRules.templateSkeleton = text
+                .replace(/"[^"]+"/g, '"[具体内容]"')
+                .replace(/\*[^*]+\*/g, '*[动作或强调]*')
+                .replace(/(?<=:\s*)[^\n]+/g, '[属性值]');
+
+            return learnedRules;
+        }
+
+        /**
+         * 构建包含自定义学习格式指南的 System Prompt（最高优先级指令）
+         */
+        function buildLearnedFormatInstructions() {
+            const learned = window.currentLearnedFormat;
+            if (!learned) return '';
+
+            return `
+\n【🎯 强制格式与排版复刻要求】
+你必须严格学习并使用以下【参考语法与排版模式】进行任何内容生成、世界书条目扩写或对话回复：
+
+1. 排版类型：${learned.syntaxType}
+2. 语法规范与符号要求：
+${learned.features.map(f => ' - ' + f).join('\n')}
+
+3. 结构模版骨架（请严格按照此样式排版）：
+\`\`\`
+${learned.templateSkeleton}
+\`\`\`
+
+4. 学习依据样本：
+\`\`\`
+${learned.sample}
+\`\`\`
+请确保输出文本在符号闭环、换行习惯和结构组织上与上述样本完全保持一致！
+`;
+        }
+
+        /**
+         * 呼出“自定义格式学习”管理面板
+         */
+        function showFormatLearnerModal() {
+            const currentFormat = window.currentLearnedFormat || null;
+            const currentSample = currentFormat ? currentFormat.sample : '';
+
+            const modalHTML = `
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <p style="font-size:13px; color:#aaa; margin:0;">
+                        📌 粘贴一段您期望 AI 学习的文字排版/设定格式样本。工坊将提取其语法规则并强制 AI 在生成条目或对话时严格复刻该排版！
+                    </p>
+                    <div>
+                        <label style="font-size:12px; color:#ddd; font-weight:bold;">参考格式样本：</label>
+                        <textarea id="formatSampleInput" rows="6" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; font-family:monospace; margin-top:4px;" placeholder="例如：\n[Character(&quot;青子&quot;)]\n{ Mind(&quot;温柔&quot;;&quot;严谨&quot;) }\n*轻轻调整终端线缆*\n&quot;哥哥，数据库更新完毕。&quot;">${escHtml(currentSample)}</textarea>
+                    </div>
+                    <div id="learnedAnalysisResult" style="background:#252526; border:1px solid #333; padding:10px; border-radius:4px; font-size:12px; color:#4ec9b0;">
+                        ${currentFormat ? `✅ 当前已激活学习规则：${escHtml(currentFormat.syntaxType)}` : '💡 尚未导入自定义学习格式。'}
+                    </div>
+                </div>
+            `;
+
+            showModal('⚙️ 自定义格式学习与复刻', {
+                bodyHTML: modalHTML,
+                confirmText: '🎓 学习并应用格式',
+                onConfirm: async () => {
+                    const input = document.getElementById('formatSampleInput').value;
+                    if (!input.trim()) {
+                        window.currentLearnedFormat = null;
+                        if (typeof saveToLocal === 'function') saveToLocal();
+                        showToast('ℹ️ 已重置为默认格式');
+                        return;
+                    }
+
+                    const learned = learnCustomFormat(input);
+                    window.currentLearnedFormat = learned;
+
+                    if (typeof saveToLocal === 'function') saveToLocal();
+                    showToast(`✅ 格式学习成功！检测为：${learned.syntaxType}`);
+                }
+            });
+        }
+
+        // ============================================================
+        //  全局知识数据库（静态挂载参考模块，平行于世界书）
+        // ============================================================
+        /**
+         * 显示并管理全局知识数据库
+         */
+        function showDatabaseModal() {
+            const renderDBList = () => {
+                if (knowledgeDatabase.length === 0) {
+                    return `<div style="text-align:center; color:#888; padding:20px;">📭 数据库目前为空。请导入世界书作为资料。</div>`;
+                }
+                return knowledgeDatabase.map((item, index) => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:#2a2a2b; padding:10px; margin-bottom:8px; border-radius:6px; border-left: 4px solid ${item.enabled ? '#4ec9b0' : '#555'};">
+                        <div style="flex:1; overflow:hidden;">
+                            <div style="font-weight:bold; color:#ddd; font-size:14px; margin-bottom:4px;">${escHtml(item.name)}</div>
+                            <div style="font-size:12px; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(item.content)}</div>
+                        </div>
+                        <div style="display:flex; gap:10px; align-items:center; margin-left:15px;">
+                            <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:#aaa; font-size:13px;">
+                                <input type="checkbox" ${item.enabled ? 'checked' : ''} onchange="toggleDatabaseItem(${index}, this.checked)">
+                                启用参考
+                            </label>
+                            <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteDatabaseItem(${index})">删除</button>
+                        </div>
+                    </div>
+                `).join('');
+            };
+
+            const bodyHTML = `
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                    <p style="font-size:13px; color:#aaa; margin:0;">
+                        📌 <b>全局知识数据库</b>：将独立的世界书或设定集导入此处。勾选“启用”的条目，将作为<b>底层参考资料</b>永久注入 AI 的大脑，指导 AI 进行符合逻辑的设定创作。
+                    </p>
+
+                    <div style="display:flex; gap:10px;">
+                        <label class="btn btn-primary" style="cursor:pointer; text-align:center; flex:1;">
+                            📥 导入世界书 JSON 为数据库资料
+                            <input type="file" accept=".json,.yaml,.txt" style="display:none;" onchange="importToDatabase(this)">
+                        </label>
+                    </div>
+
+                    <div id="database-list-container" style="max-height: 400px; overflow-y: auto; padding-right:5px; margin-top:10px;">
+                        ${renderDBList()}
+                    </div>
+                </div>
+            `;
+
+            showModal('🗄️ 全局知识数据库 (RAG Reference)', {
+                bodyHTML: bodyHTML,
+                confirmText: '关闭',
+                onConfirm: () => { closeModal(); }
+            });
+
+            // 绑定全局更新函数供 UI 调用（闭包可访问 renderDBList）
+            window.toggleDatabaseItem = (index, isChecked) => {
+                if (knowledgeDatabase[index]) {
+                    knowledgeDatabase[index].enabled = isChecked;
+                    saveToLocal();
+                    const container = document.getElementById('database-list-container');
+                    if (container) container.innerHTML = renderDBList();
+                }
+            };
+
+            window.deleteDatabaseItem = (index) => {
+                if (confirm('确定要从数据库中移除此资料吗？')) {
+                    knowledgeDatabase.splice(index, 1);
+                    saveToLocal();
+                    const container = document.getElementById('database-list-container');
+                    if (container) container.innerHTML = renderDBList();
+                }
+            };
+        }
+
+        /**
+         * 解析上传的世界书文件，并将其转换为静态数据库条目
+         * 兼容：酒馆标准导出（entries 为 { uid: {...} } 对象）、纯数组、以及 data.entries 数组
+         */
+        async function importToDatabase(inputElement) {
+            const file = inputElement.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    let entries = data.entries || data;
+
+                    // 兼容酒馆格式：entries 可能为 { uid: {...} } 对象（用 Object.values 展开）
+                    if (entries && typeof entries === 'object' && !Array.isArray(entries)) {
+                        entries = Object.values(entries);
+                    }
+
+                    if (!Array.isArray(entries)) {
+                        throw new Error("格式不兼容：未找到有效的世界书条目数组。");
+                    }
+
+                    let importCount = 0;
+                    entries.forEach(entry => {
+                        if (!entry || typeof entry !== 'object') return;
+                        // 兼容不同的字段名
+                        const name = entry.name || entry.comment || (Array.isArray(entry.keys) && entry.keys[0]) || '未命名资料';
+                        const content = entry.content || entry.text || '';
+                        if (content.trim() !== '') {
+                            knowledgeDatabase.push({
+                                id: 'db_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                                name: name,
+                                content: content,
+                                enabled: false // 默认不开启，由用户手动决定
+                            });
+                            importCount++;
+                        }
+                    });
+
+                    saveToLocal();
+                    showToast(`✅ 成功向数据库注入 ${importCount} 条参考资料！`);
+
+                    // 重新渲染面板
+                    showDatabaseModal();
+
+                } catch (err) {
+                    showToast('❌ 导入失败: ' + err.message);
+                }
+                inputElement.value = ''; // 清空 input
+            };
+            reader.readAsText(file);
         }
 
         // ============================================================
@@ -4465,6 +4966,18 @@ ${extraContext.trim()}`;
         // ============================================================
         function showModal(title, extra) {
             document.getElementById('modalTitle').textContent = title;
+            // 🚀 通用自定义弹窗：若第二个参数传入 { bodyHTML, confirmText, onConfirm }，直接按自定义内容渲染
+            if (extra && typeof extra === 'object' && typeof extra.bodyHTML === 'string') {
+                document.getElementById('modalBody').innerHTML = extra.bodyHTML;
+                document.getElementById('modalOverlay').classList.add('show');
+                const confirmBtn = document.getElementById('modalConfirmBtn');
+                if (extra.confirmText) confirmBtn.textContent = extra.confirmText;
+                confirmBtn.onclick = function () {
+                    if (typeof extra.onConfirm === 'function') { extra.onConfirm(); }
+                    else { closeModal(); }
+                };
+                return;
+            }
             let bodyHTML = '';
             const entry = getCurrentEntry();
 
@@ -4474,12 +4987,12 @@ ${extraContext.trim()}`;
                     <div id="apiListContainer" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px;">
                         ${Object.keys(apiConfigs).map(id => `
                             <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-elevated);padding:6px 10px;border-radius:6px;margin-bottom:4px;">
-                                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" role="button" tabindex="0" onclick="editApiConfig('${id}')" title="点击载入此配置进行编辑" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();editApiConfig('${id}')}">
+                                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="editApiConfig('${id}')" title="点击载入此配置进行编辑">
                                     <strong>${apiConfigs[id].name}</strong> (${apiConfigs[id].model})
                                 </span>
                                 <span style="display:flex;gap:4px;flex-shrink:0;margin-left:6px;">
-                                    <button class="btn btn-sm" onclick="editApiConfig('${id}')" title="编辑此配置" aria-label="编辑此配置">✏️</button>
-                                    <button class="btn btn-sm btn-danger" onclick="if(confirm('删除？')){delete apiConfigs['${id}'];saveToLocal();renderAll();closeModal();showModal('API 配置管理');}" title="删除此配置" aria-label="删除此配置">🗑️</button>
+                                    <button class="btn btn-sm" onclick="editApiConfig('${id}')" title="编辑此配置">✏️</button>
+                                    <button class="btn btn-sm btn-danger" onclick="if(confirm('删除？')){delete apiConfigs['${id}'];saveToLocal();renderAll();closeModal();showModal('API 配置管理');}">🗑️</button>
                                 </span>
                             </div>
                         `).join('')}
@@ -4637,7 +5150,7 @@ ${extraContext.trim()}`;
                             <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-elevated);padding:6px 10px;border-radius:6px;margin-bottom:4px;">
                                 <span><strong>${promptPresets[id].name}</strong></span>
                                 <span style="display:flex; gap:4px;">
-                                    <button class="btn btn-sm" onclick="exportPromptPreset('${id}')" title="导出为 JSON 文件" aria-label="导出为 JSON 文件">📤</button>
+                                    <button class="btn btn-sm" onclick="exportPromptPreset('${id}')" title="导出为 JSON 文件">📤</button>
                                     <button class="btn btn-sm btn-danger" onclick="if(confirm('确定删除此预设吗？')){takeSnapshot('删除预设');delete promptPresets['${id}'];saveToLocal();renderDropdowns();closeModal();showModal('提示词管理');}">🗑️ 删除</button>
                                 </span>
                             </div>
@@ -4904,8 +5417,7 @@ ${extraContext.trim()}`;
         }
 
         function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); modalConfirmCallback = null; }
-        // 兜底：与 showModal 内联赋值逻辑一致（正常流程中 showModal 会覆盖 onclick，此函数仅作初始兜底）
-        function handleModalConfirm() { if (modalConfirmCallback) modalConfirmCallback(); else closeModal(); }
+        function handleModalConfirm() { }
 
         // ============================================================
         //  🕵️ 查看完整 AI 回复 & 隐藏对话信息
@@ -5007,16 +5519,17 @@ ${extraContext.trim()}`;
         // 快捷键绑定
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 's') { e.preventDefault(); handleSaveWorkspace(); }
-            if (e.ctrlKey && e.key === 'n') { e.preventDefault(); handleNewEntry(); } // 🚀 修复：直接新建条目，避免 showModal 无分支的空模态框
+            if (e.ctrlKey && e.key === 'n') { e.preventDefault(); showModal('新建条目'); }
             // Ctrl+Enter 发送聊天由 handleChatKeyDown 处理（textarea 内）
         });
-</script>
+
+    </script>
 
     <!-- 🚀 星图：全屏知识图谱画布（ECharts 力导向图） -->
     <div id="graphModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-base); z-index: 3000;">
         <div style="position: absolute; top: 20px; right: 30px; z-index: 3010; display: flex; gap: 15px; align-items: center;">
             <span style="color: var(--text-secondary); font-size: 14px;">💡 提示：鼠标滚轮缩放，拖拽画布平移，点击节点可直接跳转编辑</span>
-            <button type="button" class="btn" onclick="closeGraph()" style="background: var(--bg-elevated); color: var(--red); border: 1px solid var(--red);">❌ 关闭星图</button>
+            <button class="btn" onclick="closeGraph()" style="background: var(--bg-elevated); color: var(--red); border: 1px solid var(--red);">❌ 关闭星图</button>
         </div>
         <div id="graphContainer" style="width: 100%; height: 100%;"></div>
     </div>
