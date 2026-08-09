@@ -3750,6 +3750,10 @@ ${extraContext.trim()}`;
             }
             // ===== 🚀 新增结束 =====
 
+            // 🛡️ 输出格式红线：彻底掐断 AI 用 title/name 命名的念头
+            systemPrompts.push(`【输出格式红线】：
+在输出世界书条目 JSON 时，条目的显示名称必须严格使用 "comment" 字段，绝对禁止使用 "title" 或 "name" 字段！`);
+
             // 4. 初始化要发给 API 的 Messages 数组
             const systemPromptText = systemPrompts.join('\n\n=====\n\n');
             let apiMessages = [
@@ -4007,9 +4011,20 @@ ${extraContext.trim()}`;
                         const entriesArr = getEntriesArray();
                         const wb = getCurrentWorldbook();
                         operations.worldbook_updates.forEach(op => {
-                            const idx = entriesArr.findIndex(e => String(e.uid) === String(op && op.uid) || (e.keys && op && op.title && e.keys[0] === op.title));
+                            // 🚀 增强匹配：兼容 AI 用 uid / title / name / comment 定位已有条目（防重复新建）
+                            const idx = entriesArr.findIndex(e => String(e.uid) === String(op && op.uid)
+                                || (e.keys && op && ((op.title && e.keys[0] === op.title) || (op.name && e.keys[0] === op.name) || (op.comment && e.keys[0] === op.comment)))
+                                || (op && op.comment && e.comment === op.comment));
                             if (op.action === 'add_or_update') {
                                 const pos = mapPositionValue(op.position);
+                                // 🚀 [BugFix 补丁]：多维度智能兼容 AI 命名习惯 (comment/name/title/keys[0])
+                                const entryName = op.comment ||
+                                    op.name ||
+                                    op.title ||
+                                    (Array.isArray(op.keys) && op.keys.length > 0 ? op.keys[0] : '未命名条目');
+                                // 统一抹平为酒馆世界书标准的 comment 字段
+                                if (op.title !== undefined) delete op.title;
+                                if (op.name !== undefined) delete op.name;
                                 if (idx > -1) {
                                     const target = entriesArr[idx];
                                     if (op.content !== undefined) target.content = op.content;
@@ -4017,12 +4032,16 @@ ${extraContext.trim()}`;
                                     if (op.order !== undefined) target.order = parseInt(op.order) || target.order;
                                     if (pos !== null) target.position = pos;
                                     if (Array.isArray(op.keys) && op.keys.length) target.keys = op.keys;
+                                    else if (entryName && entryName !== '未命名条目') target.keys = [entryName];
+                                    // 统一显示名：写入标准 comment 字段
+                                    if (entryName && entryName !== '未命名条目') target.comment = entryName;
                                 } else {
                                     const newUid = Date.now() + entriesArr.length;
                                     wb.entries[newUid] = {
                                         uid: newUid,
-                                        keys: Array.isArray(op.keys) && op.keys.length ? op.keys : [op.title || '新条目'],
+                                        keys: Array.isArray(op.keys) && op.keys.length ? op.keys : [entryName],
                                         content: op.content || '',
+                                        comment: entryName,
                                         constant: false, disable: false,
                                         order: parseInt(op.order) || 100,
                                         selectiveLogic: 0, excludeRecursion: false, probability: 100,
