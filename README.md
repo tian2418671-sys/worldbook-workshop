@@ -97,9 +97,9 @@
 
 ```powershell
 cd github-deploy
-.\deploy.ps1                        # 一键部署（自动把父目录源文件同步为 index.html）
+.\deploy.ps1                        # 一键部署（自动把父目录构建产物 index.html 同步为部署 index.html）
 .\deploy.ps1 -CommitMessage "更新日志"   # 指定提交信息
-.\deploy.ps1 -SourceFile ..\index.html  # 指定其它源文件
+.\deploy.ps1 -SourceFile ..\dist\app.html  # 指定其它源文件
 .\deploy.ps1 -RepoName my-lorebook -Private   # 部署到新私有仓库
 .\deploy.ps1 -SkipSync -SkipPush           # 只提交当前内容，不推送
 ```

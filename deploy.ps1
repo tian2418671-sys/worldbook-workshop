@@ -2,21 +2,21 @@
 # 🚀 世界书工坊 · 一键部署脚本（增强版）
 #
 # 能力：
-#   1. 自动把最新源文件（默认父目录 新文件2.HTML）同步为 index.html
+#   1. 自动把最新构建产物（默认父目录 index.html）同步为部署 index.html
 #   2. 自动 git 提交 + 推送（支持自定义提交信息 / 跳过同步 / 跳过推送）
 #   3. 仓库不存在时自动创建（gh），并自动开启/更新 GitHub Pages
 #
 # 用法：
 #   .\deploy.ps1                             # 一键：同步 → 提交 → 推送 → 确保 Pages
 #   .\deploy.ps1 -CommitMessage "更新日志"
-#   .\deploy.ps1 -SourceFile ..\index.html
+#   .\deploy.ps1 -SourceFile ..\dist\app.html
 #   .\deploy.ps1 -RepoName my-lorebook -Private
 #   .\deploy.ps1 -SkipSync -SkipPush          # 只查看/提交当前内容，不推送
 # ==========================================
 param(
     [string]$RepoName = "worldbook-workshop",
     [switch]$Private,
-    [string]$SourceFile = "..\新文件2.HTML",
+    [string]$SourceFile = "..\index.html",
     [string]$CommitMessage = "",
     [switch]$SkipSync,
     [switch]$SkipPush,
@@ -39,7 +39,7 @@ if (-not (Test-Path ".git")) {
     exit 1
 }
 
-# 2. 同步最新源文件 → index.html（默认：父目录的 新文件2.HTML）
+# 2. 同步最新构建产物 → index.html（默认：父目录的 index.html）
 if (-not $SkipSync) {
     $srcFull = Join-Path $scriptDir $SourceFile
     if (-not (Test-Path $srcFull)) {
