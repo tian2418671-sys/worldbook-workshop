@@ -3187,13 +3187,18 @@ ${extraContext.trim()}`;
             else sel.value = 'all';
         }
 
-        // 将酒馆式位置字符串映射为应用内的数字 position 枚举（0=主提示前,1=主提示后,...）
+        // 将酒馆式位置字符串映射为应用内的数字 position 枚举（与 SillyTavern 官方枚举一致）
+        // 0=角色定义之前, 1=角色定义之后, 2=作者注记顶部, 3=作者注记底部, 4=@D 深度, 5=示例消息之前, 6=示例消息之后
         function mapPositionValue(pos) {
             if (typeof pos === 'number') return (pos >= 0 && pos <= 6) ? pos : null;
             const s = String(pos || '').trim().toLowerCase();
-            if (['角色定义之前', '主提示前', 'before main', 'beforemain', 'before_main'].includes(s)) return 0;
-            if (['角色定义之后', '主提示后', 'after main', 'aftermain', 'after_main'].includes(s)) return 1;
-            if (['@d', 'at depth', '深度', 'dynamic'].includes(s)) return 1; // @D 近似映射为主提示后
+            if (['角色定义之前', '主提示前', 'before char', 'before_char', 'before main', 'beforemain', 'before_main'].includes(s)) return 0;
+            if (['角色定义之后', '主提示后', 'after char', 'after_char', 'after main', 'aftermain', 'after_main'].includes(s)) return 1;
+            if (['作者注记顶部', '注释顶部', 'top an', 'top_an', 'top of authors note'].includes(s)) return 2;
+            if (['作者注记底部', '注释底部', 'bottom an', 'bottom_an', 'bottom of authors note'].includes(s)) return 3;
+            if (['@d', '@d 深度', 'at depth', 'at_depth', '深度', 'dynamic'].includes(s)) return 4; // @D → 官方枚举 4
+            if (['示例消息之前', '示例顶部', 'before example', 'before_example'].includes(s)) return 5;
+            if (['示例消息之后', '示例底部', 'after example', 'after_example'].includes(s)) return 6;
             return null; // 无法识别则保持原位置不变
         }
 
@@ -3869,9 +3874,9 @@ ${extraContext.trim()}`;
                     </div>
                     <div class="field"><label>位置</label>
                         <select onchange="updateEntryField('position', parseInt(this.value))">
-                            <option value="0" ${entry.position === 0 ? 'selected' : ''}>主提示前</option><option value="1" ${entry.position === 1 ? 'selected' : ''}>主提示后</option>
-                            <option value="2" ${entry.position === 2 ? 'selected' : ''}>注释顶部</option><option value="3" ${entry.position === 3 ? 'selected' : ''}>注释底部</option>
-                            <option value="4" ${entry.position === 4 ? 'selected' : ''}>聊天内</option><option value="5" ${entry.position === 5 ? 'selected' : ''}>示例顶部</option><option value="6" ${entry.position === 6 ? 'selected' : ''}>示例底部</option>
+                            <option value="0" ${entry.position === 0 ? 'selected' : ''}>角色定义之前</option><option value="1" ${entry.position === 1 ? 'selected' : ''}>角色定义之后</option>
+                            <option value="2" ${entry.position === 2 ? 'selected' : ''}>作者注记顶部</option><option value="3" ${entry.position === 3 ? 'selected' : ''}>作者注记底部</option>
+                            <option value="4" ${entry.position === 4 ? 'selected' : ''}>@D 深度</option><option value="5" ${entry.position === 5 ? 'selected' : ''}>示例消息之前</option><option value="6" ${entry.position === 6 ? 'selected' : ''}>示例消息之后</option>
                         </select>
                     </div>
                     <div class="field"><label>深度</label><input type="number" value="${entry.depth}" onchange="updateEntryField('depth', parseInt(this.value)||0)" /></div>
