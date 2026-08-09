@@ -4842,9 +4842,9 @@ ${extraContext.trim()}`;
                     else if (Array.isArray(json.blocks)) extractedBlocks = json.blocks;
                     else if (Array.isArray(json)) extractedBlocks = json;
                     else if (json.story_string !== undefined) {
-                        if (json.system_prompt) extractedBlocks.push({ identifier: 'System Prompt', content: json.system_prompt, role: 'system' });
-                        if (json.story_string) extractedBlocks.push({ identifier: 'Story String', content: json.story_string, role: 'system' });
-                        if (json.post_history_instructions) extractedBlocks.push({ identifier: 'Post History (PHI)', content: json.post_history_instructions, role: 'system' });
+                        if (json.system_prompt) extractedBlocks.push({ name: 'System Prompt', identifier: 'system_prompt', content: json.system_prompt, role: 'system' });
+                        if (json.story_string) extractedBlocks.push({ name: 'Story String', identifier: 'story_string', content: json.story_string, role: 'system' });
+                        if (json.post_history_instructions) extractedBlocks.push({ name: 'Post History (PHI)', identifier: 'post_history', content: json.post_history_instructions, role: 'system' });
                     }
 
                     if (extractedBlocks.length === 0) {
@@ -4852,14 +4852,16 @@ ${extraContext.trim()}`;
                         return;
                     }
 
-                    // 2. 格式化内部规则块（严格锁定原本顺序，并进行乱码解码，name 与 identifier 双写兼容新旧渲染）
+                    // 2. 格式化内部规则块（核心修复：优先取 b.name 真正的中文名字，identifier 多为 UUID 唯一码）
                     const formattedBlocks = extractedBlocks.map((b, index) => {
-                        const blockName = safeDecode(b.identifier || b.name) || `规则块 ${index + 1}`;
+                        // 酒馆规范：name 是人类可读名称，identifier 往往是 UUID 唯一码 → 优先取 name
+                        const rawName = b.name && String(b.name).trim() ? String(b.name).trim() : (b.identifier && String(b.identifier).trim() ? String(b.identifier).trim() : '');
+                        const ruleDisplayName = safeDecode(rawName) || `规则块 ${index + 1}`;
                         return {
                             id: 'block_' + Date.now() + '_' + String(index).padStart(4, '0'),
-                            // 🛡️ 给子规则名称套上解码保护
-                            identifier: blockName,
-                            name: blockName,
+                            identifier: ruleDisplayName,                    // 👈 正确赋值人类可读的 name
+                            name: ruleDisplayName,                          // name 双写兼容旧渲染 / AI 编译
+                            rawUUID: safeDecode(String(b.identifier || '')), // 保留底层的 UUID 标识
                             content: safeDecode(b.content || b.text) || '',
                             role: b.role || 'system',
                             enabled: b.enabled !== undefined ? b.enabled : true
