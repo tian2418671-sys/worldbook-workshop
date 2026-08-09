@@ -3941,12 +3941,12 @@ ${extraContext.trim()}`;
                 return;
             }
             const tagHTML = `
-                    <div class="field">
-                        <label>🏷️ 标签（支持自定义图标与名称）</label>
-                        <select id="entry-tag-select" class="select-styled" onchange="handleEntryTagSelect(this)">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; border-top:1px solid var(--border-color); padding-top:6px;">
+                        <label style="margin-bottom:0; white-space:nowrap; font-size:11px; color:var(--text-muted);">🏷️ 标签</label>
+                        <select id="entry-tag-select" class="select-styled" onchange="handleEntryTagSelect(this)" style="flex:1; min-width:140px;">
                             ${renderTagOptions(entry)}
                         </select>
-                        <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">${renderEntryCustomTagChips(entry)}</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:4px;">${renderEntryCustomTagChips(entry)}</div>
                     </div>
                 `;
             container.innerHTML = `
@@ -3960,8 +3960,6 @@ ${extraContext.trim()}`;
                         <button class="btn btn-sm" onclick="showModal('🔍 审查')">🔍 审查</button>
                     </div>
                 </div>
-
-                ${tagHTML}
 
                 <div class="editor-meta" style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
                     <!-- 🗝️ 触发与位置（单卡片紧凑布局，减少垂直占用） -->
@@ -4027,6 +4025,7 @@ ${extraContext.trim()}`;
                                 </div>
                                 ` : ''}
                             </div>
+                            ${tagHTML}
                         </div>
                     </div>
 
