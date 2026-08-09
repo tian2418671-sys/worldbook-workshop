@@ -13,7 +13,28 @@
 ## 🚀 在线预览（GitHub Pages）
 部署后访问：`https://<用户名>.github.io/<仓库名>/`
 
-## 🛠️ 本地使用
+## � 一键部署（增强版）
+
+在 `github-deploy` 目录下运行 `.\deploy.ps1` 即可完成**同步 → 提交 → 推送 → 开启 Pages** 全流程：
+
+```powershell
+cd github-deploy
+.\deploy.ps1                        # 一键部署（自动把父目录 新文件2.HTML 同步为 index.html）
+.\deploy.ps1 -CommitMessage "更新日志"   # 指定提交信息
+.\deploy.ps1 -SourceFile ..\index.html  # 指定其它源文件
+.\deploy.ps1 -RepoName my-lorebook -Private   # 部署到新私有仓库
+.\deploy.ps1 -SkipSync -SkipPush           # 只提交当前内容，不推送
+```
+
+脚本行为：
+1. 自动把源文件（默认 `..\新文件2.HTML`）同步为 `index.html`
+2. 有变更时自动 `git add/commit`（未指定提交信息则自动带时间戳）
+3. 检查 `gh` 登录 → 推送 `main` 分支（仓库不存在时自动创建）
+4. 幂等地开启/更新 GitHub Pages（从 `main` 分支根目录服务）
+
+> 前置要求：已安装并登录 GitHub CLI（`gh auth login`），且本目录为 git 仓库。
+
+## �🛠️ 本地使用
 直接双击打开 `index.html` 即可（数据保存在浏览器本地，断网可用）。
 
 ## ⚙️ 配置 API
