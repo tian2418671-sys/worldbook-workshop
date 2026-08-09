@@ -3985,8 +3985,8 @@ ${extraContext.trim()}`;
                                 <input id="entry-keys-input" class="input-styled" value="${(entry.keys || []).join(', ')}" oninput="saveCurrentEntryField('keys', this.value)">
                             </div>
                             <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
-                                <div style="flex:1; min-width:140px;">
-                                    <label>插入位置 (Position)</label>
+                                <div style="flex:1; min-width:120px; max-width:170px;">
+                                    <label>位置 (Position)</label>
                                     <select class="select-styled" onchange="updateEntryField('position', this.value, 'number'); renderEditor();">
                                         <option value="0" ${entry.position == 0 ? 'selected' : ''}>角色定义之前</option>
                                         <option value="1" ${entry.position == 1 ? 'selected' : ''}>角色定义之后</option>
@@ -3998,17 +3998,21 @@ ${extraContext.trim()}`;
                                         <option value="7" ${entry.position == 7 ? 'selected' : ''}>输出口 (Outlet)</option>
                                     </select>
                                 </div>
-                                <div style="flex:0 0 90px;">
-                                    <label>顺序 (Order)</label>
+                                <div style="flex:0 0 78px;">
+                                    <label>顺序</label>
                                     <input type="number" class="input-styled" value="${entry.order || 100}" onchange="updateEntryField('order', this.value, 'number')">
                                 </div>
+                                <div style="flex:0 0 78px;">
+                                    <label>概率 %</label>
+                                    <input type="number" class="input-styled" value="${entry.probability !== undefined ? entry.probability : 100}" min="0" max="100" onchange="updateEntryField('probability', this.value, 'number')">
+                                </div>
                                 ${entry.position == 6 ? `
-                                <div style="flex:0 0 90px;">
-                                    <label>深度 (Depth)</label>
+                                <div style="flex:0 0 78px;">
+                                    <label>深度</label>
                                     <input type="number" class="input-styled" value="${entry.depth || 4}" onchange="updateEntryField('depth', this.value, 'number')">
                                 </div>
-                                <div style="flex:1; min-width:120px;">
-                                    <label>角色 (Role)</label>
+                                <div style="flex:1; min-width:110px; max-width:150px;">
+                                    <label>角色</label>
                                     <select class="select-styled" onchange="updateEntryField('role', this.value, 'number')">
                                         <option value="0" ${entry.role == 0 ? 'selected' : ''}>⚙️ 系统 (System)</option>
                                         <option value="1" ${entry.role == 1 ? 'selected' : ''}>👤 用户 (User)</option>
@@ -4017,7 +4021,7 @@ ${extraContext.trim()}`;
                                 </div>
                                 ` : ''}
                                 ${entry.position == 7 ? `
-                                <div style="flex:1; min-width:140px;">
+                                <div style="flex:1; min-width:130px;">
                                     <label>输出口名称 ({{outlet::名称}})</label>
                                     <input type="text" class="input-styled" value="${escHtml(entry.outlet_name || '')}" placeholder="纯英文/拼音标识" onchange="updateEntryField('outlet_name', this.value, 'string')">
                                 </div>
