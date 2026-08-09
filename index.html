@@ -2601,13 +2601,70 @@ ${extraContext.trim()}`;
             return html; // 匹配不到则不显示标签，保持 UI 干净
         }
 
+        // 🏷️ 收集所有条目已用自定义标签（去重）
+        function getAllCustomTags() {
+            const set = new Set();
+            getEntriesArray().forEach(e => (Array.isArray(e.tags) ? e.tags : []).forEach(t => { if (t && String(t).trim()) set.add(String(t).trim()); }));
+            return Array.from(set);
+        }
+
+        // 🏷️ 标签控件：输入框当前显示值（分类中文名）
+        function getEntryTagInputValue(entry) {
+            if (!entry) return '🎯 自动判定';
+            const catMap = { 'auto': '🎯 自动判定', 'char': '👤 人物', 'loc': '📍 地点', 'item': '⚔️ 物品', 'org': '🛡️ 阵营', 'event': '📜 历史', 'none': '⚪ 未标记' };
+            return (entry.tag && catMap[entry.tag]) ? catMap[entry.tag] : '🎯 自动判定';
+        }
+
+        // 🏷️ 渲染当前条目的自定义标签徽章（可点 × 移除）
+        function renderEntryCustomTagChips(entry) {
+            if (!entry || !Array.isArray(entry.tags)) return '<span style="font-size:11px;color:var(--text-muted);">（暂无自定义标签，输入后回车/失焦添加）</span>';
+            const chips = entry.tags.filter(t => t && String(t).trim()).map(t => {
+                const safe = escHtml(String(t).trim());
+                return `<span style="display:inline-flex;align-items:center;gap:4px;background:#2f3b52;color:#8ecbff;padding:2px 8px;border-radius:10px;font-size:11px;">📌 ${safe} <span style="cursor:pointer;color:#ff6b6b;" onclick="removeEntryCustomTag('${safe.replace(/'/g, "\\'")}')" title="移除标签">×</span></span>`;
+            }).join('');
+            return chips || '<span style="font-size:11px;color:var(--text-muted);">（暂无自定义标签，输入后回车/失焦添加）</span>';
+        }
+
+        // 🏷️ 标签输入框变更处理：分类与自定义标签统一管理
+        function handleEntryTagInput(el) {
+            const entry = getCurrentEntry();
+            if (!entry) return;
+            const raw = (el.value || '').trim();
+            // 去掉 emoji 前缀后匹配（用户可能手打或选择了带图标的选项）
+            const val = raw.replace(/^[🎯👤📍⚔️🛡️📜⚪📌]\s*/, '').trim();
+            const catMap = { '自动判定': 'auto', '人物': 'char', '地点': 'loc', '物品': 'item', '阵营': 'org', '历史': 'event', '未标记': 'none' };
+            if (catMap[val] !== undefined) {
+                // 内置分类 → 设置分类标签
+                entry.tag = catMap[val];
+            } else if (val) {
+                // 自定义标签 → 追加到 tags，分类切回自动判定
+                entry.tag = 'auto';
+                if (!Array.isArray(entry.tags)) entry.tags = [];
+                if (!entry.tags.includes(val)) entry.tags.push(val);
+            } else {
+                entry.tag = 'auto';
+            }
+            saveToLocal();
+            renderEntries();
+            renderEditor();
+        }
+
+        // 🏷️ 移除条目自定义标签
+        function removeEntryCustomTag(tag) {
+            const entry = getCurrentEntry();
+            if (!entry || !Array.isArray(entry.tags)) return;
+            entry.tags = entry.tags.filter(t => t !== tag);
+            saveToLocal();
+            renderEntries();
+            renderEditor();
+        }
+
         // 🏷️ 动态刷新标签筛选下拉：内置分类 + 全部已用自定义标签
         function refreshTagFilterOptions() {
             const sel = document.getElementById('tag-filter-select');
             if (!sel) return;
             const prev = sel.value;
-            const tagSet = new Set();
-            getEntriesArray().forEach(e => (Array.isArray(e.tags) ? e.tags : []).forEach(t => { if (t && String(t).trim()) tagSet.add(String(t).trim()); }));
+            const customTags = getAllCustomTags();
             const builtin = [
                 { v: 'all', label: '🌐 全部条目 (All)' },
                 { v: 'char', label: '👤 人物 (Characters)' },
@@ -2618,7 +2675,7 @@ ${extraContext.trim()}`;
                 { v: 'untagged', label: '⚪ 未标记 / 其他 (Uncategorized)' }
             ];
             sel.innerHTML = builtin.map(o => `<option value="${o.v}">${o.label}</option>`).join('')
-                + Array.from(tagSet).map(t => `<option value="tag:${t}">📌 ${t}</option>`).join('');
+                + customTags.map(t => `<option value="tag:${t}">📌 ${t}</option>`).join('');
             // 尽量保持用户当前选择（若该选项仍存在）
             if (Array.from(sel.options).some(o => o.value === prev)) sel.value = prev;
             else sel.value = 'all';
@@ -3287,18 +3344,21 @@ ${extraContext.trim()}`;
                 </div>
                 <div class="editor-meta">
                     <div class="field"><label>🔑 触发关键词 (逗号分隔)</label><input id="entry-keys-input" value="${(entry.keys || []).join(', ')}" placeholder="例如：亚瑟, Arthur, 石中剑" oninput="saveCurrentEntryField('keys', this.value)" /></div>
-                    <div class="field"><label>分类标签</label>
-                        <select onchange="updateEntryField('tag', this.value)" title="手动指定分类标签，将覆盖自动判定">
-                            <option value="auto" ${!entry.tag || entry.tag === 'auto' ? 'selected' : ''}>🎯 自动判定</option>
-                            <option value="char" ${entry.tag === 'char' ? 'selected' : ''}>👤 人物</option>
-                            <option value="loc" ${entry.tag === 'loc' ? 'selected' : ''}>📍 地点</option>
-                            <option value="item" ${entry.tag === 'item' ? 'selected' : ''}>⚔️ 物品</option>
-                            <option value="org" ${entry.tag === 'org' ? 'selected' : ''}>🛡️ 阵营</option>
-                            <option value="event" ${entry.tag === 'event' ? 'selected' : ''}>📜 历史</option>
-                            <option value="none" ${entry.tag === 'none' ? 'selected' : ''}>⚪ 未标记</option>
-                        </select>
+                    <div class="field">
+                        <label>🏷️ 标签（分类 + 自定义，可输入）</label>
+                        <input id="entry-tag-input" list="entry-tag-datalist" value="${getEntryTagInputValue(entry)}" placeholder="选择分类，或输入自定义标签后回车/失焦添加" onchange="handleEntryTagInput(this)" />
+                        <datalist id="entry-tag-datalist">
+                            <option value="🎯 自动判定"></option>
+                            <option value="👤 人物"></option>
+                            <option value="📍 地点"></option>
+                            <option value="⚔️ 物品"></option>
+                            <option value="🛡️ 阵营"></option>
+                            <option value="📜 历史"></option>
+                            <option value="⚪ 未标记"></option>
+                            ${getAllCustomTags().map(t => `<option value="📌 ${escHtml(t)}"></option>`).join('')}
+                        </datalist>
+                        <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">${renderEntryCustomTagChips(entry)}</div>
                     </div>
-                    <div class="field"><label>🏷️ 自定义标签 (逗号分隔，可自建)</label><input id="entry-tags-input" value="${(entry.tags || []).join(', ')}" placeholder="例如：主线, 重要角色, 待完善" oninput="saveCurrentEntryField('tags', this.value)" /></div>
                     <div class="field"><label>触发逻辑</label>
                         <select onchange="updateEntryField('selectiveLogic', parseInt(this.value))">
                             <option value="0" ${entry.selectiveLogic === 0 ? 'selected' : ''}>AND_ANY</option>
