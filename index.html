@@ -4508,11 +4508,18 @@ ${extraContext.trim()}`;
                                 || (op && op.comment && e.comment === op.comment));
                             if (op.action === 'add_or_update') {
                                 const pos = mapPositionValue(op.position);
-                                // 🚀 [BugFix 补丁]：多维度智能兼容 AI 命名习惯 (comment/name/title/keys[0])
-                                const entryName = op.comment ||
-                                    op.name ||
-                                    op.title ||
-                                    (Array.isArray(op.keys) && op.keys.length > 0 ? op.keys[0] : '未命名条目');
+                                // �️ 姓名绝对防御 + 键名防火墙：只有 AI 明确给出合法名字才更新，绝不拿 JSON 字段名当条目名！
+                                // 名字只允许来自 comment / name / title 这三个明确字段
+                                let entryName = '';
+                                if (op.comment && String(op.comment).trim()) entryName = String(op.comment).trim();
+                                else if (op.name && String(op.name).trim()) entryName = String(op.name).trim();
+                                else if (op.title && String(op.title).trim()) entryName = String(op.title).trim();
+                                // 🚨 拦截内鬼：若"名字"命中保留的英文键名，视为 AI 没发名字，直接丢弃！
+                                const reservedFieldNames = ['content', 'action', 'keys', 'tags', 'uid', 'order', 'depth', 'position', 'worldbook_updates', 'description', 'text', 'name', 'title', 'comment', 'prompt_blocks_updates', 'preset_settings_updates'];
+                                if (entryName && reservedFieldNames.includes(entryName.toLowerCase())) {
+                                    console.warn('⚠️ 拦截到把 JSON 字段名当条目名的错误行为，已丢弃该名字！');
+                                    entryName = '';
+                                }
                                 // 统一抹平为酒馆世界书标准的 comment 字段
                                 if (op.title !== undefined) delete op.title;
                                 if (op.name !== undefined) delete op.name;
@@ -4523,16 +4530,25 @@ ${extraContext.trim()}`;
                                     if (op.order !== undefined) target.order = parseInt(op.order) || target.order;
                                     if (pos !== null) target.position = pos;
                                     if (Array.isArray(op.keys) && op.keys.length) target.keys = op.keys;
-                                    else if (entryName && entryName !== '未命名条目') target.keys = [entryName];
-                                    // 统一显示名：写入标准 comment 字段
-                                    if (entryName && entryName !== '未命名条目') target.comment = entryName;
+                                    // 只有拿到合法名字才改名；AI 没给名字就保留原条目名（绝不用 keys[0] 或字段名覆盖）
+                                    if (entryName) {
+                                        target.comment = entryName;
+                                        if (!Array.isArray(op.keys) || !op.keys.length) target.keys = [entryName];
+                                    }
                                 } else {
+                                    // 新建条目：没有合法名字时，才用触发词 keys[0] 兜底（并排除保留字段名）
+                                    let newName = entryName;
+                                    if (!newName) {
+                                        const firstKey = (Array.isArray(op.keys) && op.keys.length) ? String(op.keys[0]).trim() : '';
+                                        if (firstKey && !reservedFieldNames.includes(firstKey.toLowerCase())) newName = firstKey;
+                                    }
+                                    const safeName = newName || '未命名条目';
                                     const newUid = Date.now() + entriesArr.length;
                                     wb.entries[newUid] = {
                                         uid: newUid,
-                                        keys: Array.isArray(op.keys) && op.keys.length ? op.keys : [entryName],
+                                        keys: Array.isArray(op.keys) && op.keys.length ? op.keys : [safeName],
                                         content: op.content || '',
-                                        comment: entryName,
+                                        comment: safeName,
                                         constant: false, disable: false,
                                         order: parseInt(op.order) || 100,
                                         selectiveLogic: 0, excludeRecursion: false, probability: 100,
