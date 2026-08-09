@@ -3980,11 +3980,11 @@ ${extraContext.trim()}`;
                             </span>
                         </div>
                         <div style="display:flex; flex-direction:column; gap:6px;">
-                            <div>
-                                <label>主关键词 (逗号分隔，支持 /正则/)</label>
-                                <input id="entry-keys-input" class="input-styled" value="${(entry.keys || []).join(', ')}" oninput="saveCurrentEntryField('keys', this.value)">
-                            </div>
                             <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+                                <div style="flex:2; min-width:170px;">
+                                    <label>主关键词 (逗号分隔，支持 /正则/)</label>
+                                    <input id="entry-keys-input" class="input-styled" value="${(entry.keys || []).join(', ')}" oninput="saveCurrentEntryField('keys', this.value)">
+                                </div>
                                 <div style="flex:1; min-width:120px; max-width:170px;">
                                     <label>位置 (Position)</label>
                                     <select class="select-styled" onchange="updateEntryField('position', this.value, 'number'); renderEditor();">
