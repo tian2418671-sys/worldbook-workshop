@@ -1843,6 +1843,110 @@
         syncPresetsToLegacy();
 
         let apiLogs = [];
+
+        // 🧙 智能调优专用系统提示词（世界书架构师预设版）——智能调优不走当前预设 blocks，只走这个提示词
+        const SMART_TUNE_ARCHITECT_PROMPT = `你是一位SillyTavern世界书架构师，精通世界书（World Info）的构建逻辑和配置规则。你的职责是帮助用户将世界设定、角色信息、剧情元素转化为结构化的世界书条目，并给出最优的位置设置、激活策略和递归配置建议。
+
+你的核心任务：根据用户输入的内容，自动判断应该创建一个还是多个世界书条目，为每条选择合适的位置设置（角色定义之前/角色定义之后/@D深度），配置激活策略（常量/可选项），并给出关键字、时效功能、递归设置等完整参数。
+
+以下是你的工作流程和决策规则：
+
+第一，内容分类与条目规划。
+收到用户的原始设定内容后，先判断内容类型：
+- 如果是宏观世界观设定（物理法则、通用规则、世界基础框架），标记为核心基础类，建议放在角色定义之前，采用常量激活（蓝灯）。
+- 如果是与角色直接相关的背景（角色所处环境、社会关系、个人历史），标记为角色关联类，建议放在角色定义之后，采用可选项激活或常量激活，根据具体内容决定。
+- 如果是概括归纳性的人物、关系、势力、世界观等基础设定，标记为核心总览类，建议放在角色定义之前，采用常量激活（蓝灯）。
+- 如果是详细的补充说明（某条规则的深入细化、特定角色的详细履历、具体道具的说明），标记为深化扩展类，建议放在角色定义之后或@D深度，采用可选项激活（绿灯），每个独立主题拆分为独立条目。
+- 如果是需要在对话中即时激活的临时规则、动态变化的环境描述、高优先级指令，标记为即时触发类，建议使用@D深度，靠近聊天末尾。
+
+第二，激活策略配置。
+根据条目类型选择激活模式：
+- 常量（蓝灯）：适用于始终需要生效的基础设定，无需关键字，启用即激活。位置通常为角色定义之前。
+- 可选项（绿灯）：适用于需要特定触发条件的内容。需要设置主要关键字，并使用半角逗号分隔多个同权关键字。如果内容与角色强相关，主关键字应包含角色名称；如果与地点相关，应包含地名；如果与事件相关，应包含事件关键词。
+对于可选项条目，如需复合逻辑，应配置可选过滤器和逻辑类型（与任意/与所有/非任何/非所有）。常规情况下，不添加过滤器，仅依靠主要关键字匹配。
+
+第三，递归与关联设计。
+评估条目之间是否需要递归激活：
+- 如果存在层级关系（例如：蓝灯核心条目概括了整体设定，绿灯详细条目补充具体规则），应让绿灯条目依赖蓝灯条目的内容进行递归激活。做法：将绿灯条目的主要关键字设为蓝灯条目中已包含的高频词汇，或直接使用蓝灯条目的名称作为关键字。
+- 如果某个条目内容极其详细且可能污染上下文，应在递归设置中勾选“防止进一步递归”，使其内容不用于激活其他条目。
+- 如果某个条目只应由聊天正文直接触发，不应被其他条目递归触发，勾选“不可递归”。
+
+第四，时效功能配置。
+根据条目的作用时长设置：
+- 长期有效的设定（如角色背景、世界法则），不设置黏性或冷却。
+- 一次性事件或临时状态，可设置冷却值（如冷却5轮）避免频繁重复激活。
+- 需要持续生效数轮的临时效果，设置黏性值（如黏性3轮），使其在激活后持续生效。
+- 需要延迟才能解锁的信息，设置延迟值，要求聊天达到一定轮次后方可激活。
+
+第五，输出格式。
+按以下格式输出配置结果：
+【条目名称】
+位置设置：（角色定义之前/角色定义之后/@D深度+指定深度值）
+激活策略：（常量/可选项）
+主要关键字：（若为可选项，列出关键字，用逗号分隔）
+可选过滤器：（若有，列出；若无则写“无”）
+逻辑类型：（与任意/与所有/非任何/非所有，若无过滤器则写“不适用”）
+黏性：（数值或“无”）
+冷却：（数值或“无”）
+延迟：（数值或“无”）
+不可递归：（是/否）
+防止进一步递归：（是/否）
+延迟到递归：（数值或“无”）
+条目内容：（整理后的设定文本，应简洁、直接、符合条目容量建议）
+
+如果用户提供了多个内容块，按上述格式逐条输出。每条之间用空行分隔。
+
+第六，示例参考。
+用户输入原始内容：
+“我创建了一个叫艾尔登的奇幻世界。这个世界中，魔法来源于地脉能量，施法者必须与地脉节点建立共鸣才能施法。精灵族是地脉的守护者，他们寿命很长，普遍超过500岁。精灵族住在深林中的银月城，城市建筑由活木构成，夜间会发出微光。精灵王叫瑟兰迪尔，性格高傲但公正。此外，还有一个重要设定：每年冬至，地脉能量会暴动，称为‘地脉狂潮’，届时魔法变得不可控，所有施法者都要避入地脉庇护所。”
+
+正确输出：
+【条目名称：艾尔登世界·基础法则】
+位置设置：角色定义之前
+激活策略：常量（蓝灯）
+主要关键字：不适用
+可选过滤器：无
+逻辑类型：不适用
+黏性：无
+冷却：无
+延迟：无
+不可递归：否
+防止进一步递归：是
+条目内容：艾尔登世界，魔法源于地脉能量。施法需与地脉节点建立共鸣。每年冬至地脉能量暴动，称为“地脉狂潮”，期间魔法不可控，施法者必须避入地脉庇护所。
+
+【条目名称：精灵族·银月城】
+位置设置：角色定义之后
+激活策略：可选项（绿灯）
+主要关键字：精灵，银月城，精灵族
+可选过滤器：无
+逻辑类型：不适用
+黏性：无
+冷却：无
+延迟：无
+不可递归：否
+防止进一步递归：否
+条目内容：精灵族，地脉守护者，寿命超500岁，居于深林银月城。城市建筑由活木构成，夜间自发微光。精灵王瑟兰迪尔，性格高傲但公正。
+
+【条目名称：地脉狂潮·应对规则】
+位置设置：@D深度，深度3
+激活策略：可选项（绿灯）
+主要关键字：地脉狂潮，冬至
+可选过滤器：无
+逻辑类型：不适用
+黏性：3
+冷却：无
+延迟：无
+不可递归：是
+防止进一步递归：是
+条目内容：地脉狂潮期间，任何施法行为有极高概率失控。所有角色若身处野外，需立即寻找地脉庇护所。若身处庇护所内，可正常施法，但效果波动。`;
+
+        // 调优提示词模式：'architect'（世界书架构师预设，默认）| 'custom'（自定义）
+        window.smartTuneMode = 'architect';
+        // 调优对话框切换自定义文本域的可用状态
+        function toggleTuneModeInput() {
+            const ta = document.getElementById('tuningRulesInput');
+            if (ta) ta.disabled = (window.smartTuneMode !== 'custom');
+        }
         let currentWorldbookUid = 1;
         let currentEntryUid = 101;
         let searchQuery = '';
@@ -2446,22 +2550,21 @@
                 // 【核心修复 1】：如果是聊天助手，直接接管组装好的包含记忆的数组
                 apiMessages = extraContext;
             } else if (actionType === '智能调优') {
-                // 有自定义规则时：完全以自定义规则为准
+                // 智能调优专用提示词：默认走"世界书架构师"预设（不注入当前预设 blocks），可选自定义（由调优对话框的模式选项决定）
                 let tuningRules;
-                if (extraContext && extraContext.trim()) {
+                const tuneMode = (typeof window.smartTuneMode !== 'undefined') ? window.smartTuneMode : 'architect';
+                if (tuneMode === 'custom' && extraContext && extraContext.trim()) {
                     tuningRules = `【用户自定义调优规则】（请完全按此执行，覆盖默认调优逻辑）：
 ${extraContext.trim()}`;
                 } else {
-                    tuningRules = `你现在是 SillyTavern（酒馆）世界书全局自动化架构中枢。
-你的任务是接收当前世界书所有条目的参数快照，自动清理深度滥用（D0/D1）、位置冲突，并将 Order（顺序）进行阶梯化重排。
-
-【填写要求】
-- position 仅限：角色定义之前 / 角色定义之后 / @D
-- depth 为整数，严禁将长文本设定放在 0 或 1。
-- order 为整数，请将原先扎堆为 100 的条目，按逻辑以 10 或 20 递增打散。
-- 必须为接收到的每一个条目都输出一条记录。`;
+                    tuningRules = SMART_TUNE_ARCHITECT_PROMPT;
                 }
-                const formatContract = `【绝对输出指令】你必须且只能输出一个合法的 JSON 数组！绝对不要输出任何 Markdown 格式。`;
+                // 输出契约：遵循架构师决策规则，但强制 JSON 数组输出（供自动应用参数）
+                const formatContract = `【绝对输出指令】请严格遵循上述世界书架构师规则进行分析与决策。
+但最终输出格式例外：你必须且只能输出一个合法的 JSON 数组（不要输出任何 Markdown，也不要输出上文第五节的文本格式）。
+数组中每个对象对应一个条目，字段为：
+{"uid":条目UID, "name":推荐条目名(仅当有明确合法名称时), "keys":["关键字1","关键字2"], "depth":整数, "order":整数, "position":"角色定义之前"|"角色定义之后"|"@D"|数字, "probability":0-100整数, "selectiveLogic":0|1|2|3, "excludeRecursion":true|false, "sticky":数值或省略, "cooldown":数值或省略, "delay":数值或省略}
+必须为接收到的每一个条目都输出一条记录。`;
                 apiMessages.push({ role: 'system', content: tuningRules + '\n\n' + formatContract });
             } else {
                 // 如果遇到需要强行返回 JSON 的批量功能，插入一个临时的高优格式限制
@@ -6562,21 +6665,40 @@ ${learned.sample}
             } else if (title.includes('智能调优')) {
                 bodyHTML = `
                     <p>🧠 AI 将扫描当前世界书的所有条目，并给出全局排序与深度注入建议。</p>
-                    <p style="margin-top: 8px; font-weight: 500;">自定义调优规则（可选）：</p>
-                    <textarea id="tuningRulesInput" placeholder="例如：优先保证'人物'条目的注入深度，或者把所有场景类条目的概率调低..." style="min-height: 60px; margin-bottom: 12px;"></textarea>
+                    <div style="margin-top: 10px; background: var(--bg-elevated); padding: 10px 12px; border-radius: 6px;">
+                        <div style="font-weight:500; font-size:13px; margin-bottom:6px;">⚙️ 调优提示词模式：</div>
+                        <label style="display:flex; align-items:center; gap:6px; margin-bottom:6px; cursor:pointer;">
+                            <input type="radio" name="tuneMode" value="architect" checked onchange="window.smartTuneMode=this.value; toggleTuneModeInput()" style="width:auto;" />
+                            🧙 世界书架构师（预设专业调优提示词）
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                            <input type="radio" name="tuneMode" value="custom" onchange="window.smartTuneMode=this.value; toggleTuneModeInput()" style="width:auto;" />
+                            ✍️ 自定义提示词
+                        </label>
+                    </div>
+                    <p style="margin-top: 8px; font-weight: 500;">自定义调优规则（选择"✍️ 自定义"时生效）：</p>
+                    <textarea id="tuningRulesInput" placeholder="例如：优先保证'人物'条目的注入深度，或者把所有场景类条目的概率调低..." style="min-height: 60px; margin-bottom: 12px;" disabled></textarea>
                     <div id="aiAnalysisResult" style="background:var(--bg-elevated);padding:12px;border-radius:6px;min-height:80px;white-space:pre-wrap;font-size:13px;line-height:1.5;">点击“开始分析”获取建议</div>
                 `;
                 modalConfirmCallback = async function() {
                     // 获取用户输入的自定义调优规则
                     const customRules = document.getElementById('tuningRulesInput').value.trim();
-                    
+                    // 若选了"自定义"但未填写内容，自动回退架构师预设并提示
+                    if (window.smartTuneMode === 'custom' && !customRules) {
+                        window.smartTuneMode = 'architect';
+                        const radios = document.querySelectorAll('input[name="tuneMode"]');
+                        radios.forEach(r => { r.checked = (r.value === 'architect'); });
+                        toggleTuneModeInput();
+                        showToast('⚠️ 自定义提示词为空，已自动切换为"世界书架构师"模式');
+                    }
+
                     const confirmBtn = document.getElementById('modalConfirmBtn');
                     confirmBtn.textContent = '分析中...'; confirmBtn.disabled = true;
-                    
+
                     // 将自定义规则作为 extraContext 传给大模型
                     const result = await fetchAICompletion('智能调优', customRules);
                     if (result) { document.getElementById('aiAnalysisResult').textContent = result; showToast('调优分析完成！'); }
-                    
+
                     confirmBtn.textContent = '重新分析'; confirmBtn.disabled = false;
                 };
 
