@@ -2208,8 +2208,12 @@
             // --------------------------------------------------------
             let apiMessages = [];
 
-            // 【核心修复 1】：如果是聊天助手，直接接管组装好的包含记忆的数组
-            if (actionType === '设定交流助手' && Array.isArray(extraContext)) {
+            // 🚀 新增：若调用方直接传入预编译的 messages 数组（如 generateEntryWithPreset），则直接接管，跳过内部组装
+            const isPrecompiledMessages = Array.isArray(actionType);
+            if (isPrecompiledMessages) {
+                apiMessages = actionType;
+            } else if (actionType === '设定交流助手' && Array.isArray(extraContext)) {
+                // 【核心修复 1】：如果是聊天助手，直接接管组装好的包含记忆的数组
                 apiMessages = extraContext;
             } else if (actionType === '智能调优') {
                 // 有自定义规则时：完全以自定义规则为准
@@ -2249,8 +2253,8 @@ ${extraContext.trim()}`;
                 }
             }
 
-            // 【核心修复 2】：助手模式不再重复追加单条 userMessage
-            if (actionType !== '设定交流助手') {
+            // 【核心修复 2】：助手模式 / 预编译消息模式不再重复追加单条 userMessage
+            if (actionType !== '设定交流助手' && !isPrecompiledMessages) {
                 let userMessage = "";
                 switch (actionType) {
                     case '扩写': userMessage = `请对以下设定进行扩写：\n\n【已有内容】：${extraContext}`; break;
@@ -4427,6 +4431,86 @@ ${extraContext.trim()}`;
             }
 
             return assembledMessages;
+        }
+
+        /**
+         * 组装已勾选酒馆预设 + 当前上下文的 API 消息序列
+         * @param {Array} presetBlocks 预设规则块列表
+         * @param {string} baseInstruction 基础系统任务指令（如"你是世界书架构师"）
+         * @param {string} worldbookContext 世界书上下文（注入 {{worldbook}}/{{lore}}）
+         * @param {string} extraUserPrompt 用户当前的改写/生成要求
+         */
+        function assemblePresetMessagesForAI(presetBlocks, baseInstruction = '', worldbookContext = '', extraUserPrompt = '') {
+            // 1. 获取所有开启的区块并按 order 排序
+            const activeBlocks = (presetBlocks || [])
+                .filter(b => b.enabled)
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+            let apiMessages = [];
+            let systemBuffer = [];
+
+            // 基础系统任务指令（如：你是一个专业的酒馆世界书架构师）
+            if (baseInstruction.trim()) {
+                systemBuffer.push(baseInstruction.trim());
+            }
+
+            // 2. 依次注入酒馆预设块
+            activeBlocks.forEach(block => {
+                let content = block.content || '';
+
+                // 替换酒馆标准宏表达式
+                content = content
+                    .replace(/\{\{char\}\}/gi, 'AI')
+                    .replace(/\{\{user\}\}/gi, 'User')
+                    .replace(/\{\{worldbook\}\}/gi, worldbookContext)
+                    .replace(/\{\{lore\}\}/gi, worldbookContext);
+
+                if (block.role === 'system') {
+                    systemBuffer.push(`【预设规则: ${block.name}】\n${content}`);
+                } else {
+                    // 遇到了非 system 块，先将前面积攒的 systemBuffer 打包归入消息序列
+                    if (systemBuffer.length > 0) {
+                        apiMessages.push({ role: 'system', content: systemBuffer.join('\n\n') });
+                        systemBuffer = [];
+                    }
+                    apiMessages.push({ role: block.role, content: content });
+                }
+            });
+
+            // 刷出剩余的 systemBuffer
+            if (systemBuffer.length > 0) {
+                apiMessages.push({ role: 'system', content: systemBuffer.join('\n\n') });
+            }
+
+            // 3. 注入用户当前的改写/生成要求
+            if (extraUserPrompt.trim()) {
+                apiMessages.push({ role: 'user', content: extraUserPrompt.trim() });
+            }
+
+            return apiMessages;
+        }
+
+        /**
+         * 在 AI 帮写/扩写世界书条目时应用酒馆预设（预编译消息直接接驳 fetchAICompletion）
+         */
+        async function generateEntryWithPreset(userPrompt, currentEntryContext = '') {
+            // 获取当前生效的酒馆预设 Blocks（现有架构：promptPresets[currentPromptId]）
+            const currentPreset = promptPresets[currentPromptId];
+            const currentPresetBlocks = (currentPreset && Array.isArray(currentPreset.blocks)) ? currentPreset.blocks : [];
+
+            const baseSystemTask = `你是一名精通 SillyTavern（酒馆）引擎的世界书创作大师。请严格按照预设规则与格式要求，创作或优化以下世界书条目。`;
+
+            // 💡 自动编译：将“预设规则”与“创作需求”完美融合
+            const messages = assemblePresetMessagesForAI(
+                currentPresetBlocks,
+                baseSystemTask,
+                currentEntryContext, // 当前世界书上下文
+                userPrompt           // 用户的要求，如："请扩写一个关于工业帝国兵工厂的条目"
+            );
+
+            // 发送给 API（fetchAICompletion 已支持直接接收预编译的 messages 数组）
+            const response = await fetchAICompletion(messages);
+            return response;
         }
 
         // ============================================================
