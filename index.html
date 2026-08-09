@@ -1345,6 +1345,20 @@
             max-width: 100%;
             overflow-x: auto;
         }
+        /* 🆕 代码块深色底 + 等宽字体，与正文清晰区分 */
+        .chat-bubble pre {
+            background: rgba(0, 0, 0, 0.35);
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin: 6px 0;
+            font-family: Consolas, Menlo, monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #d4d4d4;
+        }
+        .chat-bubble code {
+            font-family: Consolas, Menlo, monospace;
+        }
         .chat-row.user .chat-bubble {
             background: var(--accent);
             color: #0f0e12;
