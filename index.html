@@ -6684,6 +6684,11 @@ ${learned.sample}
                 rawHTML = `
                     <div class="detail-note">以下为本次请求收到后<b>未清洗</b>的完整原始回复。其中 <code>&lt;think&gt;</code> 思考块、<code>[metacognition]</code> 与 JSON/YAML 操作代码块在聊天区中被隐藏，仅在此完整展示。</div>
                     <pre class="detail-pre">${escHtml(msg._raw)}</pre>`;
+            } else if (isAssistant && msg.content) {
+                // 🆕 兼容旧数据：未保留 _raw 但有 content 时，回退展示聊天区已显示内容，避免"有数据却显示无"
+                rawHTML = `
+                    <div class="detail-note">该消息未保留<b>未清洗</b>的原始回复（可能是旧数据），以下为聊天区已展示的完整内容。</div>
+                    <pre class="detail-pre">${escHtml(msg.content)}</pre>`;
             } else {
                 rawHTML = `<div class="text-muted">该消息未保留原始回复（可能是旧数据或清洗结果为空）。</div>`;
             }
