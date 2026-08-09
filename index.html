@@ -2581,7 +2581,7 @@ ${extraContext.trim()}`;
             return 'none'; // 未匹配到任何分类
         }
 
-        // 渲染标签 HTML
+        // 渲染标签 HTML（分类标签 + 自定义标签徽章）
         function getEntryCategoryTag(entry) {
             const type = getEntryCategoryType(entry);
             const tagMap = {
@@ -2591,7 +2591,37 @@ ${extraContext.trim()}`;
                 'org': '<span class="tag tag-org">🛡️ 阵营</span>',
                 'event': '<span class="tag tag-event">📜 历史</span>'
             };
-            return tagMap[type] || ''; // 匹配不到则不显示标签，保持 UI 干净
+            let html = tagMap[type] || '';
+            // 🏷️ 自定义标签徽章（用户手动添加的任意标签）
+            if (Array.isArray(entry.tags)) {
+                entry.tags.filter(t => t && String(t).trim()).forEach(t => {
+                    html += `<span class="tag" style="background:#2f3b52;color:#8ecbff;">📌 ${escHtml(String(t).trim())}</span>`;
+                });
+            }
+            return html; // 匹配不到则不显示标签，保持 UI 干净
+        }
+
+        // 🏷️ 动态刷新标签筛选下拉：内置分类 + 全部已用自定义标签
+        function refreshTagFilterOptions() {
+            const sel = document.getElementById('tag-filter-select');
+            if (!sel) return;
+            const prev = sel.value;
+            const tagSet = new Set();
+            getEntriesArray().forEach(e => (Array.isArray(e.tags) ? e.tags : []).forEach(t => { if (t && String(t).trim()) tagSet.add(String(t).trim()); }));
+            const builtin = [
+                { v: 'all', label: '🌐 全部条目 (All)' },
+                { v: 'char', label: '👤 人物 (Characters)' },
+                { v: 'loc', label: '📍 地点 (Locations)' },
+                { v: 'item', label: '⚔️ 物品 (Items)' },
+                { v: 'org', label: '🛡️ 阵营 (Factions)' },
+                { v: 'event', label: '📜 历史 (History)' },
+                { v: 'untagged', label: '⚪ 未标记 / 其他 (Uncategorized)' }
+            ];
+            sel.innerHTML = builtin.map(o => `<option value="${o.v}">${o.label}</option>`).join('')
+                + Array.from(tagSet).map(t => `<option value="tag:${t}">📌 ${t}</option>`).join('');
+            // 尽量保持用户当前选择（若该选项仍存在）
+            if (Array.from(sel.options).some(o => o.value === prev)) sel.value = prev;
+            else sel.value = 'all';
         }
 
         // 将酒馆式位置字符串映射为应用内的数字 position 枚举（0=主提示前,1=主提示后,...）
@@ -2744,6 +2774,9 @@ ${extraContext.trim()}`;
                 entry.keys = value.split(',').map(k => k.trim()).filter(Boolean);
             } else if (field === 'content') {
                 entry.content = value;
+            } else if (field === 'tags') {
+                // 🏷️ 自定义标签（逗号分隔 → 数组），可自建任意标签
+                entry.tags = value.split(',').map(t => t.trim()).filter(Boolean);
             }
             saveToLocal(); // 持久化
             renderEntries(); // 刷新中间列表标题
@@ -3197,12 +3230,18 @@ ${extraContext.trim()}`;
                 });
             }
             // 🏷️ 标签分类过滤（与关键词搜索形成双重过滤）
+            refreshTagFilterOptions(); // 🆕 动态刷新筛选下拉（内置分类 + 自定义标签）
             const tagFilterSelect = document.getElementById('tag-filter-select');
             const filterType = tagFilterSelect ? tagFilterSelect.value : 'all';
             if (filterType !== 'all') {
                 entries = entries.filter(e => {
+                    if (filterType === 'untagged') { const type = getEntryCategoryType(e); return type === 'none'; } // 筛选未分类条目
+                    if (filterType.startsWith('tag:')) {
+                        // 🆕 按自定义标签筛选
+                        const tagName = filterType.slice(4);
+                        return Array.isArray(e.tags) && e.tags.includes(tagName);
+                    }
                     const type = getEntryCategoryType(e);
-                    if (filterType === 'untagged') return type === 'none'; // 筛选未分类条目
                     return type === filterType;
                 });
             }
@@ -3259,6 +3298,7 @@ ${extraContext.trim()}`;
                             <option value="none" ${entry.tag === 'none' ? 'selected' : ''}>⚪ 未标记</option>
                         </select>
                     </div>
+                    <div class="field"><label>🏷️ 自定义标签 (逗号分隔，可自建)</label><input id="entry-tags-input" value="${(entry.tags || []).join(', ')}" placeholder="例如：主线, 重要角色, 待完善" oninput="saveCurrentEntryField('tags', this.value)" /></div>
                     <div class="field"><label>触发逻辑</label>
                         <select onchange="updateEntryField('selectiveLogic', parseInt(this.value))">
                             <option value="0" ${entry.selectiveLogic === 0 ? 'selected' : ''}>AND_ANY</option>
