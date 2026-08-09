@@ -7,6 +7,40 @@
     <title>世界书工坊 · AI 驱动</title>
     <style>
 
+        /* 🎨 统一标签徽章基础样式（原生与自定义通用） */
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 1.2;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #e2e8f0;
+            box-sizing: border-box;
+        }
+
+        /* 🎨 统一各类型标签的色彩微光主题 */
+        .tag-chip.cat-char   { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.4); color: #93c5fd; }
+        .tag-chip.cat-loc    { background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); color: #6ee7b7; }
+        .tag-chip.cat-item   { background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #fde047; }
+        .tag-chip.cat-org    { background: rgba(168, 85, 247, 0.2); border-color: rgba(168, 85, 247, 0.4); color: #d8b4fe; }
+        .tag-chip.cat-event  { background: rgba(236, 72, 153, 0.2); border-color: rgba(236, 72, 153, 0.4); color: #fbcfe8; }
+        .tag-chip.cat-custom { background: rgba(99, 102, 241, 0.2); border-color: rgba(99, 102, 241, 0.4); color: #a5b4fc; }
+
+        .tag-chip .remove-btn {
+            margin-left: 3px;
+            cursor: pointer;
+            color: #f87171;
+            font-weight: bold;
+            font-size: 13px;
+            line-height: 1;
+        }
+        .tag-chip .remove-btn:hover { color: #ef4444; }
+
         /* ===== 全局重置 ===== */
         * {
             margin: 0;
@@ -2587,27 +2621,47 @@ ${extraContext.trim()}`;
             return 'none'; // 未匹配到任何分类
         }
 
-        // 渲染标签 HTML（分类标签 + 自定义标签徽章，自定义标签兼容 "图标|名称" 格式）
-        function getEntryCategoryTag(entry) {
-            const type = getEntryCategoryType(entry);
-            const tagMap = {
-                'char': '<span class="tag tag-char">👤 人物</span>',
-                'loc': '<span class="tag tag-loc">📍 地点</span>',
-                'item': '<span class="tag tag-item">⚔️ 物品</span>',
-                'org': '<span class="tag tag-org">🛡️ 阵营</span>',
-                'event': '<span class="tag tag-event">📜 历史</span>'
+        // 🧠 核心：万能标签解析器（统一数据格式）
+        function parseTagObj(rawTag) {
+            const builtInMap = {
+                'char':  { icon: '👤', name: '人物', cssClass: 'cat-char' },
+                'loc':   { icon: '📍', name: '地点', cssClass: 'cat-loc' },
+                'item':  { icon: '⚔️', name: '物品', cssClass: 'cat-item' },
+                'org':   { icon: '🛡️', name: '阵营', cssClass: 'cat-org' },
+                'event': { icon: '📜', name: '历史', cssClass: 'cat-event' },
+                'auto':  { icon: '🎯', name: '自动判定', cssClass: '' },
+                'none':  { icon: '⚪', name: '未标记', cssClass: '' }
             };
-            let html = tagMap[type] || '';
+            if (builtInMap[rawTag]) {
+                return builtInMap[rawTag];
+            }
+            // 解析自定义标签格式 "Emoji|标签名"
+            if (typeof rawTag === 'string' && rawTag.includes('|')) {
+                const parts = rawTag.split('|');
+                return {
+                    icon: parts[0] || '📌',
+                    name: parts.slice(1).join('|'),
+                    cssClass: 'cat-custom'
+                };
+            }
+            return { icon: '📌', name: String(rawTag || '未标记'), cssClass: 'cat-custom' };
+        }
+
+        // 渲染中间栏/列表中的条目标签预览（统一 .tag-chip 样式）
+        function getEntryCategoryTag(entry) {
+            if (!entry) return '';
+            let html = '';
+            // 主分类徽章（自动判定 + 手动覆盖，none 不显示）
+            const type = getEntryCategoryType(entry);
+            if (type && type !== 'none') {
+                const mainObj = parseTagObj(type);
+                html += `<span class="tag-chip ${mainObj.cssClass}">${mainObj.icon} ${escHtml(mainObj.name)}</span>`;
+            }
+            // 自定义标签
             if (Array.isArray(entry.tags)) {
                 entry.tags.forEach(t => {
-                    const str = String(t).trim();
-                    let icon = '📌', name = str;
-                    // 兼容 "图标|名称" 格式
-                    if (str.includes('|')) {
-                        const parts = str.split('|');
-                        icon = parts[0]; name = parts.slice(1).join('|');
-                    }
-                    if (name) html += `<span class="tag" style="background:#2f3b52;color:#8ecbff;">${icon} ${escHtml(name)}</span>`;
+                    const tagObj = parseTagObj(t);
+                    html += `<span class="tag-chip ${tagObj.cssClass}">${tagObj.icon} ${escHtml(tagObj.name)}</span>`;
                 });
             }
             return html;
@@ -2702,23 +2756,28 @@ ${extraContext.trim()}`;
             });
         }
 
-        // 4. 渲染条目下方的自定义标签徽章（兼容 "图标|名称" 格式，可点 × 移除）
+        // 4. 渲染条目编辑区下方的已选标签徽章（外观与列表完全一致，可点 × 移除）
         function renderEntryCustomTagChips(entry) {
-            if (!entry || !Array.isArray(entry.tags) || entry.tags.length === 0) {
-                return '<span style="font-size:11px;color:var(--text-muted);">（当前暂未附加自定义标签）</span>';
+            if (!entry) return '';
+            let html = '';
+            // 主分类徽章（自动判定 + 手动覆盖，auto/none 不显示）
+            const type = getEntryCategoryType(entry);
+            if (type && type !== 'none') {
+                const mainTag = parseTagObj(type);
+                html += `<span class="tag-chip ${mainTag.cssClass}">${mainTag.icon} ${escHtml(mainTag.name)}</span>`;
             }
-            return entry.tags.map(t => {
-                const str = String(t).trim();
-                let icon = '📌', name = str;
-                // 兼容新格式 "图标|名称"
-                if (str.includes('|')) {
-                    const parts = str.split('|');
-                    icon = parts[0];
-                    name = parts.slice(1).join('|');
-                }
-                const safeFullStr = escHtml(str).replace(/'/g, "\\'");
-                return `<span style="display:inline-flex;align-items:center;gap:4px;background:#2f3b52;color:#8ecbff;padding:2px 8px;border-radius:10px;font-size:11px;">${icon} ${escHtml(name)} <span style="cursor:pointer;color:#ff6b6b;" onclick="removeEntryCustomTag('${safeFullStr}')" title="移除标签">×</span></span>`;
-            }).join('');
+            // 附加的自定义标签
+            if (Array.isArray(entry.tags) && entry.tags.length > 0) {
+                entry.tags.forEach(t => {
+                    const tagObj = parseTagObj(t);
+                    const safeRaw = escHtml(String(t)).replace(/'/g, "\\'");
+                    html += `<span class="tag-chip ${tagObj.cssClass}">
+                        ${tagObj.icon} ${escHtml(tagObj.name)}
+                        <span class="remove-btn" onclick="removeEntryCustomTag('${safeRaw}')" title="移除标签">×</span>
+                    </span>`;
+                });
+            }
+            return html || '<span style="font-size:11px;color:var(--text-muted);">（当前暂未附加标签）</span>';
         }
 
         // 5. 点击 × 移除自定义标签
