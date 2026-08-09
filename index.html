@@ -651,7 +651,8 @@
         }
 
         .editor-content textarea {
-            flex: 1;
+            /* 注意：不能设 flex:1 —— flex-basis:0% 会覆盖 height 并禁用浏览器 resize 手柄 */
+            flex: none;
             min-height: 160px;
             background: var(--bg-surface);
             border: 1px solid var(--border-color);
