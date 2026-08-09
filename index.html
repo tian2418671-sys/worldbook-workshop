@@ -2648,13 +2648,17 @@ ${extraContext.trim()}`;
                                 if (pos !== null) entriesArr[idx].position = pos;
                                 if (aiEntry.depth !== undefined && aiEntry.depth !== null) entriesArr[idx].depth = parseInt(aiEntry.depth) || entriesArr[idx].depth;
                                 if (aiEntry.order !== undefined && aiEntry.order !== null) entriesArr[idx].order = parseInt(aiEntry.order) || entriesArr[idx].order;
+                                // 🆕 补充：触发概率 / 触发逻辑 / 防递归（智能调优完整参数支持）
+                                if (aiEntry.probability !== undefined && aiEntry.probability !== null) entriesArr[idx].probability = parseInt(aiEntry.probability) || entriesArr[idx].probability;
+                                if (aiEntry.selectiveLogic !== undefined && aiEntry.selectiveLogic !== null) entriesArr[idx].selectiveLogic = parseInt(aiEntry.selectiveLogic) || entriesArr[idx].selectiveLogic;
+                                if (aiEntry.excludeRecursion !== undefined && aiEntry.excludeRecursion !== null) entriesArr[idx].excludeRecursion = Boolean(aiEntry.excludeRecursion);
                                 updatedCount++;
                             }
                         });
                         saveToLocal();
                         renderEntries();
                         renderEditor();
-                        return `✅ 自动调优完成！已成功重排 ${updatedCount} 个条目的位置、深度与顺序。`;
+                        return `✅ 自动调优完成！已成功重排 ${updatedCount} 个条目的位置、深度、顺序、概率与逻辑。`;
                     } catch (err) {
                         console.error("智能调优 JSON 解析失败:", err, rawContent);
                         return "❌ 调优失败：AI 未能返回合法的 JSON 格式。请检查模型输出或重试。";
