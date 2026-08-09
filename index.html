@@ -4843,11 +4843,18 @@ ${learned.sample}
                         </select>
                     </div>
 
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:#1e1e1e; padding:8px; border-radius:4px;">
-                        <span style="font-size:12px; color:#aaa;">当前分类批量操作：</span>
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:#1e1e1e; padding:8px; border-radius:4px; margin-bottom:8px;">
+                        <span style="font-size:12px; color:#aaa;">当前分类批量开关：</span>
                         <div style="display:flex; gap:10px;">
                             <button class="btn" style="font-size:12px; padding:4px 10px;" onclick="batchToggleDatabase(true)">✅ 全部开启</button>
                             <button class="btn" style="font-size:12px; padding:4px 10px;" onclick="batchToggleDatabase(false)">❌ 全部关闭</button>
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:#2a2020; padding:8px; border-radius:4px;">
+                        <span style="font-size:12px; color:#ff9c9c;">🗑️ 一键删除：</span>
+                        <div style="display:flex; gap:10px;">
+                            <button class="btn btn-danger" style="font-size:12px; padding:4px 10px;" onclick="deleteCategoryDatabase()">🗑️ 删除当前分类</button>
+                            <button class="btn btn-danger" style="font-size:12px; padding:4px 10px;" onclick="deleteAllDatabase()">💥 清空全部</button>
                         </div>
                     </div>
 
@@ -4891,6 +4898,38 @@ ${learned.sample}
                 const container = document.getElementById('database-list-container');
                 if (container) container.innerHTML = renderDBList();
                 showToast(state ? '✅ 已批量开启当前分类资料' : '⏸️ 已批量关闭当前分类资料');
+            };
+
+            // 🗑️ 一键删除：删除当前筛选分类下的全部条目
+            window.deleteCategoryDatabase = () => {
+                const target = window.currentDbFilter === 'All'
+                    ? knowledgeDatabase
+                    : knowledgeDatabase.filter(item => (item.source || '未分类') === window.currentDbFilter);
+                if (target.length === 0) { showToast('ℹ️ 当前分类下没有可删除的资料'); return; }
+                const label = window.currentDbFilter === 'All'
+                    ? `全部 ${target.length} 条资料`
+                    : `当前分类「${window.currentDbFilter}」的 ${target.length} 条资料`;
+                if (!confirm(`确定要删除${label}吗？\n此操作不可撤销！`)) return;
+                if (window.currentDbFilter === 'All') {
+                    knowledgeDatabase = [];
+                } else {
+                    knowledgeDatabase = knowledgeDatabase.filter(item => (item.source || '未分类') !== window.currentDbFilter);
+                }
+                window.currentDbFilter = 'All';
+                saveToLocal();
+                showDatabaseModal(); // 刷新整个面板
+                showToast(`✅ 已删除 ${target.length} 条资料`);
+            };
+
+            // 💥 一键清空：删除整个数据库的全部条目
+            window.deleteAllDatabase = () => {
+                if (knowledgeDatabase.length === 0) { showToast('ℹ️ 数据库本来就是空的'); return; }
+                if (!confirm(`确定要清空整个数据库（共 ${knowledgeDatabase.length} 条资料）吗？\n⚠️ 此操作不可撤销，建议先导出备份！`)) return;
+                knowledgeDatabase = [];
+                window.currentDbFilter = 'All';
+                saveToLocal();
+                showDatabaseModal();
+                showToast('✅ 数据库已全部清空');
             };
         }
 
