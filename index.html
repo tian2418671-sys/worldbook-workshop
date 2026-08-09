@@ -2563,7 +2563,7 @@ ${extraContext.trim()}`;
                 const formatContract = `【绝对输出指令】请严格遵循上述世界书架构师规则进行分析与决策。
 但最终输出格式例外：你必须且只能输出一个合法的 JSON 数组（不要输出任何 Markdown，也不要输出上文第五节的文本格式）。
 数组中每个对象对应一个条目，字段为：
-{"uid":条目UID, "name":推荐条目名(仅当有明确合法名称时), "keys":["关键字1","关键字2"], "depth":整数, "order":整数, "position":"角色定义之前"|"角色定义之后"|"@D"|数字, "probability":0-100整数, "selectiveLogic":0|1|2|3, "excludeRecursion":true|false, "sticky":数值或省略, "cooldown":数值或省略, "delay":数值或省略}
+{"uid":条目UID, "name":推荐条目名(仅当有明确合法名称时), "keys":["关键字1","关键字2"], "depth":整数, "order":整数, "position":"角色定义之前"|"角色定义之后"|"作者注记顶部"|"作者注记底部"|"@D"|"@D 系统"|"@D 用户"|"@D 助手"|"示例消息之前"|"示例消息之后"|"输出口"|数字, "probability":0-100整数, "selectiveLogic":0|1|2|3, "excludeRecursion":true|false, "sticky":数值或省略, "cooldown":数值或省略, "delay":数值或省略}
 必须为接收到的每一个条目都输出一条记录。`;
                 apiMessages.push({ role: 'system', content: tuningRules + '\n\n' + formatContract });
             } else {
@@ -2595,7 +2595,7 @@ ${extraContext.trim()}`;
                     case '生成': userMessage = `请根据关键词“${extraContext}”生成一段设定。`; break;
                     case '审查': userMessage = `审查以下条目设定是否合理：\n【触发逻辑】：${entry ? entry.selectiveLogic : 0}\n【内容】：${entry ? entry.content : ''}\n给出优化建议。`; break;
                     case '智能调优':
-                        const allEntriesSummary = getEntriesArray().map(e => `- [UID:${e.uid}] 关键词:${e.keys.join('/')} | 位置:${e.position} | 顺序:${e.order} | 深度:${e.depth}`).join('\n');
+                        const allEntriesSummary = getEntriesArray().map(e => `- [UID:${e.uid}] 关键词:${e.keys.join('/')} | 位置:${positionLabel(e.position)} | 顺序:${e.order} | 深度:${e.depth}`).join('\n');
                         userMessage = `以下是世界书快照：\n${allEntriesSummary}\n请输出 JSON 数组。`;
                         break;
                     case '批量': userMessage = `从文本中提取概念生成条目JSON数组。\n【设定文本】：\n${extraContext}`; break;
@@ -3188,18 +3188,32 @@ ${extraContext.trim()}`;
         }
 
         // 将酒馆式位置字符串映射为应用内的数字 position 枚举（与 SillyTavern 官方枚举一致）
-        // 0=角色定义之前, 1=角色定义之后, 2=作者注记顶部, 3=作者注记底部, 4=@D 深度, 5=示例消息之前, 6=示例消息之后
+        // 0=角色定义之前, 1=角色定义之后, 2=作者注记顶部, 3=作者注记底部, 4=@D, 5=示例消息之前, 6=示例消息之后, 7=输出口, 8=@D⚙️系统, 9=@D👤用户, 10=@D🤖助手
         function mapPositionValue(pos) {
-            if (typeof pos === 'number') return (pos >= 0 && pos <= 6) ? pos : null;
+            if (typeof pos === 'number') return (pos >= 0 && pos <= 10) ? pos : null;
             const s = String(pos || '').trim().toLowerCase();
             if (['角色定义之前', '主提示前', 'before char', 'before_char', 'before main', 'beforemain', 'before_main'].includes(s)) return 0;
             if (['角色定义之后', '主提示后', 'after char', 'after_char', 'after main', 'aftermain', 'after_main'].includes(s)) return 1;
             if (['作者注记顶部', '注释顶部', 'top an', 'top_an', 'top of authors note'].includes(s)) return 2;
             if (['作者注记底部', '注释底部', 'bottom an', 'bottom_an', 'bottom of authors note'].includes(s)) return 3;
-            if (['@d', '@d 深度', 'at depth', 'at_depth', '深度', 'dynamic'].includes(s)) return 4; // @D → 官方枚举 4
+            if (['@d 系统', '@d 系统消息', '@d system', '系统角色消息', '系统'].includes(s)) return 8;
+            if (['@d 用户', '@d 用户消息', '@d user', '用户角色消息', '用户'].includes(s)) return 9;
+            if (['@d 助手', '@d 助手消息', '@d assistant', '助手角色消息', '助手'].includes(s)) return 10;
+            if (['@d', 'at depth', 'at_depth', '深度', 'dynamic', '@d 深度'].includes(s)) return 4;
             if (['示例消息之前', '示例顶部', 'before example', 'before_example'].includes(s)) return 5;
             if (['示例消息之后', '示例底部', 'after example', 'after_example'].includes(s)) return 6;
+            if (['输出口', 'outlet', 'output', '出口'].includes(s)) return 7;
             return null; // 无法识别则保持原位置不变
+        }
+
+        // 将 position 枚举转为世界书文字名称（便于界面与 AI 快照辨认）
+        function positionLabel(p) {
+            const map = {
+                0: '角色定义之前', 1: '角色定义之后', 2: '作者注记顶部', 3: '作者注记底部',
+                4: '@D', 5: '示例消息之前', 6: '示例消息之后', 7: '输出口',
+                8: '@D ⚙️ 系统', 9: '@D 👤 用户', 10: '@D 🤖 助手'
+            };
+            return map[p] !== undefined ? map[p] : String(p);
         }
 
         function getCurrentWorldbook() { return worldbooks.find(w => w.uid === currentWorldbookUid) || worldbooks[0]; }
@@ -3876,7 +3890,8 @@ ${extraContext.trim()}`;
                         <select onchange="updateEntryField('position', parseInt(this.value))">
                             <option value="0" ${entry.position === 0 ? 'selected' : ''}>角色定义之前</option><option value="1" ${entry.position === 1 ? 'selected' : ''}>角色定义之后</option>
                             <option value="2" ${entry.position === 2 ? 'selected' : ''}>作者注记顶部</option><option value="3" ${entry.position === 3 ? 'selected' : ''}>作者注记底部</option>
-                            <option value="4" ${entry.position === 4 ? 'selected' : ''}>@D 深度</option><option value="5" ${entry.position === 5 ? 'selected' : ''}>示例消息之前</option><option value="6" ${entry.position === 6 ? 'selected' : ''}>示例消息之后</option>
+                            <option value="4" ${entry.position === 4 ? 'selected' : ''}>@D</option><option value="8" ${entry.position === 8 ? 'selected' : ''}>@D ⚙️ 系统</option><option value="9" ${entry.position === 9 ? 'selected' : ''}>@D 👤 用户</option><option value="10" ${entry.position === 10 ? 'selected' : ''}>@D 🤖 助手</option>
+                            <option value="5" ${entry.position === 5 ? 'selected' : ''}>示例消息之前</option><option value="6" ${entry.position === 6 ? 'selected' : ''}>示例消息之后</option><option value="7" ${entry.position === 7 ? 'selected' : ''}>输出口</option>
                         </select>
                     </div>
                     <div class="field"><label>深度</label><input type="number" value="${entry.depth}" onchange="updateEntryField('depth', parseInt(this.value)||0)" /></div>
