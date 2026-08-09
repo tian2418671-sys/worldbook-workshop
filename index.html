@@ -2676,9 +2676,8 @@ ${extraContext.trim()}`;
             return html;
         }
 
-        // 1. 生成绝对自由的下拉列表（打通系统与自定义）
-        function renderTagOptions(entry) {
-            // 首次加载时，如果全局库为空且从未初始化过，自动把系统标签"送"给用户作为基础资产
+        // 🏷️ 首次使用自动种子系统标签（下拉与筛选共用，保证同步就绪）
+        function seedDefaultTags() {
             if (globalCustomTags.length === 0 && !window.hasSeededTags && !localStorage.getItem('wb_custom_tags_seeded')) {
                 globalCustomTags = [
                     { icon: '👤', name: '人物' }, { icon: '📍', name: '地点' },
@@ -2686,8 +2685,13 @@ ${extraContext.trim()}`;
                 ];
                 window.hasSeededTags = true;
                 try { localStorage.setItem('wb_custom_tags_seeded', '1'); } catch (e) {}
-                saveToLocal(); // 🆕 持久化种子标签库
+                saveToLocal(); // 持久化种子标签库
             }
+        }
+
+        // 1. 生成绝对自由的下拉列表（打通系统与自定义）
+        function renderTagOptions(entry) {
+            seedDefaultTags(); // 🆕 确保标签库就绪
 
             // 保留两个不可删除的核心系统功能项
             let html = `
@@ -2862,6 +2866,7 @@ ${extraContext.trim()}`;
                 onCancel: () => {
                     renderEditor();
                     refreshTagFilterOptions();
+                    closeModal(); // 🆕 修复：关闭按钮必须真正关闭弹窗
                 }
             });
         }
@@ -2877,6 +2882,7 @@ ${extraContext.trim()}`;
 
         // 6. 更新顶部分类筛选的选项（你的标签库 + 旧版遗留分类）
         function refreshTagFilterOptions() {
+            seedDefaultTags(); // 🆕 确保标签库就绪（与编辑器下拉同步）
             const sel = document.getElementById('tag-filter-select');
             if (!sel) return;
             const prev = sel.value;
