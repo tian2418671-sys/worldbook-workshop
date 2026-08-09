@@ -4698,56 +4698,83 @@ ${learned.sample}
         //  全局知识数据库（静态挂载参考模块，平行于世界书）
         // ============================================================
         /**
-         * 显示并管理全局知识数据库
+         * 显示并管理全局知识数据库 (升级版：分类筛选 + 批量开关 + 单条编辑)
          */
         function showDatabaseModal() {
+            // 提取所有不重复的知识库来源
+            const sources = [...new Set(knowledgeDatabase.map(item => item.source || '未分类'))];
+            // 当前选中的来源过滤器（默认显示全部）
+            window.currentDbFilter = window.currentDbFilter || 'All';
+
             const renderDBList = () => {
-                if (knowledgeDatabase.length === 0) {
-                    return `<div style="text-align:center; color:#888; padding:20px;">📭 数据库目前为空。请导入世界书作为资料。</div>`;
+                // 根据来源过滤数据
+                const filteredDB = window.currentDbFilter === 'All'
+                    ? knowledgeDatabase
+                    : knowledgeDatabase.filter(item => (item.source || '未分类') === window.currentDbFilter);
+
+                if (filteredDB.length === 0) {
+                    return `<div style="text-align:center; color:#888; padding:20px;">📭 当前分类下没有资料。</div>`;
                 }
-                return knowledgeDatabase.map((item, index) => `
+
+                return filteredDB.map((item) => {
+                    // 找出它在全局数组中的真实索引（保证后续操作定位准确）
+                    const realIndex = knowledgeDatabase.findIndex(dbItem => dbItem.id === item.id);
+                    return `
                     <div style="display:flex; justify-content:space-between; align-items:center; background:#2a2a2b; padding:10px; margin-bottom:8px; border-radius:6px; border-left: 4px solid ${item.enabled ? '#4ec9b0' : '#555'};">
-                        <div style="flex:1; overflow:hidden;">
-                            <div style="font-weight:bold; color:#ddd; font-size:14px; margin-bottom:4px;">${escHtml(item.name)}</div>
+                        <div style="flex:1; overflow:hidden; cursor:pointer;" onclick="editDatabaseItem(${realIndex})">
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                                <span style="font-weight:bold; color:#ddd; font-size:14px;">${escHtml(item.name)}</span>
+                                <span style="font-size:10px; background:#444; padding:2px 6px; border-radius:10px; color:#aaa;">${escHtml(item.source || '未分类')}</span>
+                            </div>
                             <div style="font-size:12px; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(item.content)}</div>
                         </div>
                         <div style="display:flex; gap:10px; align-items:center; margin-left:15px;">
                             <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:#aaa; font-size:13px;">
-                                <input type="checkbox" ${item.enabled ? 'checked' : ''} onchange="toggleDatabaseItem(${index}, this.checked)">
-                                启用参考
+                                <input type="checkbox" ${item.enabled ? 'checked' : ''} onchange="toggleDatabaseItem(${realIndex}, this.checked)">
+                                启用
                             </label>
-                            <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteDatabaseItem(${index})">删除</button>
+                            <button class="btn" style="padding:4px 8px; font-size:12px; background:#444;" onclick="editDatabaseItem(${realIndex})">✏️</button>
+                            <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteDatabaseItem(${realIndex})">🗑️</button>
                         </div>
                     </div>
-                `).join('');
+                `}).join('');
             };
 
             const bodyHTML = `
                 <div style="display:flex; flex-direction:column; gap:15px;">
-                    <p style="font-size:13px; color:#aaa; margin:0;">
-                        📌 <b>全局知识数据库</b>：将独立的世界书或设定集导入此处。勾选“启用”的条目，将作为<b>底层参考资料</b>永久注入 AI 的大脑，指导 AI 进行符合逻辑的设定创作。
-                    </p>
-
-                    <div style="display:flex; gap:10px;">
+                    <div style="display:flex; gap:10px; align-items:center;">
                         <label class="btn btn-primary" style="cursor:pointer; text-align:center; flex:1;">
-                            📥 导入世界书 JSON 为数据库资料
+                            📥 导入新知识库 (JSON)
                             <input type="file" accept=".json,.yaml,.txt" style="display:none;" onchange="importToDatabase(this)">
                         </label>
+
+                        <select id="dbSourceFilter" onchange="window.currentDbFilter=this.value; showDatabaseModal();" style="padding:8px; background:#1e1e1e; color:#ddd; border:1px solid #444; border-radius:4px; flex:1;">
+                            <option value="All" ${window.currentDbFilter === 'All' ? 'selected' : ''}>🌐 显示所有知识库</option>
+                            ${sources.map(src => `<option value="${escAttr(src)}" ${window.currentDbFilter === src ? 'selected' : ''}>📁 ${escHtml(src)}</option>`).join('')}
+                        </select>
                     </div>
 
-                    <div id="database-list-container" style="max-height: 400px; overflow-y: auto; padding-right:5px; margin-top:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:#1e1e1e; padding:8px; border-radius:4px;">
+                        <span style="font-size:12px; color:#aaa;">当前分类批量操作：</span>
+                        <div style="display:flex; gap:10px;">
+                            <button class="btn" style="font-size:12px; padding:4px 10px;" onclick="batchToggleDatabase(true)">✅ 全部开启</button>
+                            <button class="btn" style="font-size:12px; padding:4px 10px;" onclick="batchToggleDatabase(false)">❌ 全部关闭</button>
+                        </div>
+                    </div>
+
+                    <div id="database-list-container" style="max-height: 400px; overflow-y: auto; padding-right:5px;">
                         ${renderDBList()}
                     </div>
                 </div>
             `;
 
-            showModal('🗄️ 全局知识数据库 (RAG Reference)', {
+            showModal('🗄️ 全局参谋知识数据库', {
                 bodyHTML: bodyHTML,
-                confirmText: '关闭',
+                confirmText: '完成管理',
                 onConfirm: () => { closeModal(); }
             });
 
-            // 绑定全局更新函数供 UI 调用（闭包可访问 renderDBList）
+            // 绑定交互函数（闭包可访问 renderDBList）
             window.toggleDatabaseItem = (index, isChecked) => {
                 if (knowledgeDatabase[index]) {
                     knowledgeDatabase[index].enabled = isChecked;
@@ -4758,22 +4785,82 @@ ${learned.sample}
             };
 
             window.deleteDatabaseItem = (index) => {
-                if (confirm('确定要从数据库中移除此资料吗？')) {
+                if (confirm('确定要从数据库中永久移除此条资料吗？')) {
                     knowledgeDatabase.splice(index, 1);
                     saveToLocal();
-                    const container = document.getElementById('database-list-container');
-                    if (container) container.innerHTML = renderDBList();
+                    showDatabaseModal(); // 刷新整个面板
                 }
+            };
+
+            window.batchToggleDatabase = (state) => {
+                knowledgeDatabase.forEach(item => {
+                    if (window.currentDbFilter === 'All' || (item.source || '未分类') === window.currentDbFilter) {
+                        item.enabled = state;
+                    }
+                });
+                saveToLocal();
+                const container = document.getElementById('database-list-container');
+                if (container) container.innerHTML = renderDBList();
+                showToast(state ? '✅ 已批量开启当前分类资料' : '⏸️ 已批量关闭当前分类资料');
             };
         }
 
         /**
-         * 解析上传的世界书文件，并将其转换为静态数据库条目
+         * 深度编辑单条数据库资料
+         */
+        function editDatabaseItem(index) {
+            const item = knowledgeDatabase[index];
+            if (!item) return;
+
+            const bodyHTML = `
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div>
+                        <label style="font-size:12px; color:#ddd; font-weight:bold;">资料名称：</label>
+                        <input type="text" id="editDbName" value="${escAttr(item.name)}" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; margin-top:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:12px; color:#ddd; font-weight:bold;">知识库来源 (分组标签)：</label>
+                        <input type="text" id="editDbSource" value="${escAttr(item.source || '未分类')}" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; margin-top:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:12px; color:#ddd; font-weight:bold;">核心内容 (AI 参考的底层逻辑)：</label>
+                        <textarea id="editDbContent" rows="8" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; font-family:monospace; margin-top:4px;">${escHtml(item.content)}</textarea>
+                    </div>
+                </div>
+            `;
+
+            showModal(`✏️ 编辑数据库资料`, {
+                bodyHTML: bodyHTML,
+                confirmText: '💾 保存修改',
+                onConfirm: async () => {
+                    const newName = document.getElementById('editDbName').value.trim();
+                    const newSource = document.getElementById('editDbSource').value.trim();
+                    const newContent = document.getElementById('editDbContent').value.trim();
+
+                    if (newName && newContent) {
+                        knowledgeDatabase[index].name = newName;
+                        knowledgeDatabase[index].source = newSource;
+                        knowledgeDatabase[index].content = newContent;
+                        saveToLocal();
+                        showToast('✅ 资料修改已保存');
+                        showDatabaseModal(); // 刷新上一层面板
+                    } else {
+                        showToast('❌ 名称和内容不能为空！');
+                    }
+                }
+            });
+        }
+
+        /**
+         * 解析上传的世界书文件，并将其转换为静态数据库条目（带来源分组）
          * 兼容：酒馆标准导出（entries 为 { uid: {...} } 对象）、纯数组、以及 data.entries 数组
          */
         async function importToDatabase(inputElement) {
             const file = inputElement.files[0];
             if (!file) return;
+
+            // 提取去后缀的文件名作为该批次知识库的“来源名称”
+            const sourceName = file.name.replace(/\.[^/.]+$/, "");
 
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -4801,6 +4888,7 @@ ${learned.sample}
                                 id: 'db_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                                 name: name,
                                 content: content,
+                                source: sourceName, // 新增：记录它的知识库来源
                                 enabled: false // 默认不开启，由用户手动决定
                             });
                             importCount++;
@@ -4808,7 +4896,7 @@ ${learned.sample}
                     });
 
                     saveToLocal();
-                    showToast(`✅ 成功向数据库注入 ${importCount} 条参考资料！`);
+                    showToast(`✅ 成功向数据库注入 ${importCount} 条资料，来源：[${sourceName}]`);
 
                     // 重新渲染面板
                     showDatabaseModal();
