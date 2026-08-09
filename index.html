@@ -7,7 +7,7 @@
     <title>世界书工坊 · AI 驱动</title>
     <style>
 
-        /* 🎨 统一标签徽章基础样式（原生与自定义通用） */
+        /* 🎨 标签徽章基准样式 */
         .tag-chip {
             display: inline-flex;
             align-items: center;
@@ -18,28 +18,31 @@
             font-weight: 500;
             line-height: 1.2;
             background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.18);
             color: #e2e8f0;
             box-sizing: border-box;
+            transition: all 0.2s ease;
         }
 
-        /* 🎨 统一各类型标签的色彩微光主题 */
-        .tag-chip.cat-char   { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.4); color: #93c5fd; }
-        .tag-chip.cat-loc    { background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); color: #6ee7b7; }
-        .tag-chip.cat-item   { background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #fde047; }
-        .tag-chip.cat-org    { background: rgba(168, 85, 247, 0.2); border-color: rgba(168, 85, 247, 0.4); color: #d8b4fe; }
-        .tag-chip.cat-event  { background: rgba(236, 72, 153, 0.2); border-color: rgba(236, 72, 153, 0.4); color: #fbcfe8; }
-        .tag-chip.cat-custom { background: rgba(99, 102, 241, 0.2); border-color: rgba(99, 102, 241, 0.4); color: #a5b4fc; }
+        /* 原生 5 大分类的经典配色 */
+        .tag-chip.cat-char   { background: rgba(59, 130, 246, 0.25); border-color: rgba(59, 130, 246, 0.5); color: #93c5fd; }
+        .tag-chip.cat-loc    { background: rgba(16, 185, 129, 0.25); border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7; }
+        .tag-chip.cat-item   { background: rgba(245, 158, 11, 0.25); border-color: rgba(245, 158, 11, 0.5); color: #fde047; }
+        .tag-chip.cat-org    { background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.5); color: #d8b4fe; }
+        .tag-chip.cat-event  { background: rgba(236, 72, 153, 0.25); border-color: rgba(236, 72, 153, 0.5); color: #fbcfe8; }
+        /* 兼容旧数据残留的 cat-custom（自定义标签现走内联动态色，此兜底无害） */
+        .tag-chip.cat-custom { background: rgba(99, 102, 241, 0.25); border-color: rgba(99, 102, 241, 0.5); color: #a5b4fc; }
 
         .tag-chip .remove-btn {
-            margin-left: 3px;
+            margin-left: 4px;
             cursor: pointer;
             color: #f87171;
             font-weight: bold;
             font-size: 13px;
             line-height: 1;
+            opacity: 0.8;
         }
-        .tag-chip .remove-btn:hover { color: #ef4444; }
+        .tag-chip .remove-btn:hover { opacity: 1; color: #ef4444; }
 
         /* ===== 全局重置 ===== */
         * {
@@ -2661,32 +2664,71 @@ ${extraContext.trim()}`;
         }
 
         // 🧠 核心：万能标签解析器（统一数据格式）
-        function parseTagObj(rawTag) {
-            const builtInMap = {
-                'char':  { icon: '👤', name: '人物', cssClass: 'cat-char' },
-                'loc':   { icon: '📍', name: '地点', cssClass: 'cat-loc' },
-                'item':  { icon: '⚔️', name: '物品', cssClass: 'cat-item' },
-                'org':   { icon: '🛡️', name: '阵营', cssClass: 'cat-org' },
-                'event': { icon: '📜', name: '历史', cssClass: 'cat-event' },
-                'auto':  { icon: '🎯', name: '自动判定', cssClass: '' },
-                'none':  { icon: '⚪', name: '未标记', cssClass: '' }
+        // 🎨 1. 根据标签名称动态生成独一无二且好看的 HSL 高亮色彩
+        function getHashColorStyle(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const hue = Math.abs(hash) % 360; // 0~360 度绚丽色相
+            return {
+                bg: `hsla(${hue}, 55%, 22%, 0.45)`,        // 半透明深色背景
+                border: `hsla(${hue}, 65%, 50%, 0.55)`,    // 高亮边框
+                color: `hsla(${hue}, 85%, 82%, 1)`         // 柔和高亮文字
             };
-            if (builtInMap[rawTag]) {
-                return builtInMap[rawTag];
-            }
-            // 解析自定义标签格式 "Emoji|标签名"
-            if (typeof rawTag === 'string' && rawTag.includes('|')) {
-                const parts = rawTag.split('|');
-                return {
-                    icon: parts[0] || '📌',
-                    name: parts.slice(1).join('|'),
-                    cssClass: 'cat-custom'
-                };
-            }
-            return { icon: '📌', name: String(rawTag || '未标记'), cssClass: 'cat-custom' };
         }
 
-        // 中间栏条目列表的标签预览（同步去重）
+        // 🧠 2. 升级版万能标签解析器（支持原生分类高亮 + 自定义标签多彩哈希）
+        function parseTagObj(rawTag) {
+            if (!rawTag) return { icon: '⚪', name: '未标记', cssClass: '', inlineStyle: '' };
+
+            let str = String(rawTag).trim();
+            if (str.startsWith('builtin:')) str = str.replace('builtin:', '');
+
+            let icon = '', name = str;
+            if (str.includes('|')) {
+                const parts = str.split('|');
+                icon = parts[0];
+                name = parts.slice(1).join('|');
+            }
+
+            const cleanName = name.replace(/^[🎯👤📍⚔️🛡️📜⚪📌]\s*/, '').trim();
+
+            // 经典系统分类的专属高亮映射
+            const builtInMap = {
+                'char':  { icon: '👤', name: '人物', cssClass: 'cat-char' },
+                '人物':  { icon: '👤', name: '人物', cssClass: 'cat-char' },
+                'loc':   { icon: '📍', name: '地点', cssClass: 'cat-loc' },
+                '地点':  { icon: '📍', name: '地点', cssClass: 'cat-loc' },
+                'item':  { icon: '⚔️', name: '物品', cssClass: 'cat-item' },
+                '物品':  { icon: '⚔️', name: '物品', cssClass: 'cat-item' },
+                'org':   { icon: '🛡️', name: '阵营', cssClass: 'cat-org' },
+                '阵营':  { icon: '🛡️', name: '阵营', cssClass: 'cat-org' },
+                'event': { icon: '📜', name: '历史', cssClass: 'cat-event' },
+                '历史':  { icon: '📜', name: '历史', cssClass: 'cat-event' }
+            };
+
+            if (builtInMap[str] || builtInMap[cleanName]) {
+                const target = builtInMap[str] || builtInMap[cleanName];
+                return {
+                    icon: icon || target.icon,
+                    name: target.name,
+                    cssClass: target.cssClass,
+                    inlineStyle: '' // 使用 CSS 类中的原生高亮
+                };
+            }
+
+            // 🌟 自定义标签：动态计算专属缤纷色彩！
+            const dynColor = getHashColorStyle(cleanName || name);
+            return {
+                icon: icon || '📌',
+                name: name,
+                cssClass: 'cat-dynamic',
+                inlineStyle: `background:${dynColor.bg}; border-color:${dynColor.border}; color:${dynColor.color};`
+            };
+        }
+
+        // 📋 2. 中间栏条目列表标签预览渲染（同步五彩缤纷）
         function getEntryCategoryTag(entry) {
             if (!entry) return '';
             const allTags = [];
@@ -2701,8 +2743,8 @@ ${extraContext.trim()}`;
             }
 
             return allTags.map(rawTag => {
-                const tagObj = rawTag.startsWith('builtin:') ? parseTagObj(rawTag.split(':')[1]) : parseTagObj(rawTag);
-                return `<span class="tag-chip ${tagObj.cssClass}">${tagObj.icon} ${escHtml(tagObj.name)}</span>`;
+                const tagObj = parseTagObj(rawTag);
+                return `<span class="tag-chip ${tagObj.cssClass}" style="${tagObj.inlineStyle}">${tagObj.icon} ${escHtml(tagObj.name)}</span>`;
             }).join(' ');
         }
 
@@ -2842,24 +2884,17 @@ ${extraContext.trim()}`;
             });
         }
 
-        // 🏷️ 渲染当前条目的所有标签徽章（无论新旧，每一个都带 × 按钮）
+        // 🏷️ 1. 编辑区标签徽章渲染（应用动态色彩 + 删除按钮）
         function renderEntryCustomTagChips(entry) {
             if (!entry) return '';
-
-            // 收集该条目的所有有效标签，并进行严格去重
             const allTags = [];
 
-            // 1. 兼容旧版系统主分类 (非 auto / none 时)
             if (entry.tag && entry.tag !== 'auto' && entry.tag !== 'none') {
                 allTags.push(`builtin:${entry.tag}`);
             }
-
-            // 2. 收集 entry.tags 数组中的标签
             if (Array.isArray(entry.tags)) {
                 entry.tags.forEach(t => {
-                    if (t && !allTags.includes(t)) {
-                        allTags.push(t);
-                    }
+                    if (t && !allTags.includes(t)) allTags.push(t);
                 });
             }
 
@@ -2868,15 +2903,9 @@ ${extraContext.trim()}`;
             }
 
             return allTags.map(rawTag => {
-                let tagObj;
-                if (rawTag.startsWith('builtin:')) {
-                    tagObj = parseTagObj(rawTag.split(':')[1]);
-                } else {
-                    tagObj = parseTagObj(rawTag);
-                }
-
+                const tagObj = parseTagObj(rawTag);
                 const safeTagStr = escHtml(rawTag).replace(/'/g, "\\'");
-                return `<span class="tag-chip ${tagObj.cssClass}">
+                return `<span class="tag-chip ${tagObj.cssClass}" style="${tagObj.inlineStyle}">
                     ${tagObj.icon} ${escHtml(tagObj.name)}
                     <span class="remove-btn" onclick="removeTagFromEntry('${safeTagStr}')" title="移除此标签">×</span>
                 </span>`;
