@@ -1299,6 +1299,7 @@
             align-items: flex-start;
             gap: 8px;
             max-width: 92%;
+            min-width: 0; /* 🆕 允许气泡正常收缩，避免长内容把气泡撑成一大片 */
         }
         .chat-row.user {
             align-self: flex-end;
@@ -1332,6 +1333,17 @@
             line-height: 1.5;
             word-wrap: break-word;
             white-space: pre-wrap;
+            /* 🆕 修复：约束气泡宽度，防止长内容/代码块把气泡撑成一大片 */
+            max-width: 100%;
+            min-width: 0;
+            overflow-wrap: break-word;
+            overflow-x: auto;
+        }
+        /* 🆕 气泡内的代码块 / 表格允许横向滚动，避免撑开气泡 */
+        .chat-bubble pre,
+        .chat-bubble table {
+            max-width: 100%;
+            overflow-x: auto;
         }
         .chat-row.user .chat-bubble {
             background: var(--accent);
