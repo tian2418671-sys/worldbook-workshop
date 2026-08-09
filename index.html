@@ -2686,24 +2686,24 @@ ${extraContext.trim()}`;
             return { icon: '📌', name: String(rawTag || '未标记'), cssClass: 'cat-custom' };
         }
 
-        // 渲染中间栏/列表中的条目标签预览（统一 .tag-chip 样式）
+        // 中间栏条目列表的标签预览（同步去重）
         function getEntryCategoryTag(entry) {
             if (!entry) return '';
-            let html = '';
-            // 主分类徽章（自动判定 + 手动覆盖，none 不显示）
-            const type = getEntryCategoryType(entry);
-            if (type && type !== 'none') {
-                const mainObj = parseTagObj(type);
-                html += `<span class="tag-chip ${mainObj.cssClass}">${mainObj.icon} ${escHtml(mainObj.name)}</span>`;
+            const allTags = [];
+
+            if (entry.tag && entry.tag !== 'auto' && entry.tag !== 'none') {
+                allTags.push(`builtin:${entry.tag}`);
             }
-            // 自定义标签
             if (Array.isArray(entry.tags)) {
                 entry.tags.forEach(t => {
-                    const tagObj = parseTagObj(t);
-                    html += `<span class="tag-chip ${tagObj.cssClass}">${tagObj.icon} ${escHtml(tagObj.name)}</span>`;
+                    if (t && !allTags.includes(t)) allTags.push(t);
                 });
             }
-            return html;
+
+            return allTags.map(rawTag => {
+                const tagObj = rawTag.startsWith('builtin:') ? parseTagObj(rawTag.split(':')[1]) : parseTagObj(rawTag);
+                return `<span class="tag-chip ${tagObj.cssClass}">${tagObj.icon} ${escHtml(tagObj.name)}</span>`;
+            }).join(' ');
         }
 
         // 🏷️ 首次使用自动种子系统标签（下拉与筛选共用，保证同步就绪）
@@ -2747,7 +2747,7 @@ ${extraContext.trim()}`;
             return html;
         }
 
-        // 2. 监听下拉框的选择动作
+        // 监听下拉框选择，智能去重，绝不重复堆积标签
         function handleEntryTagSelect(el) {
             const entry = getCurrentEntry();
             if (!entry) return;
@@ -2759,18 +2759,22 @@ ${extraContext.trim()}`;
                 return;
             }
             if (val === 'manage_tags') {
-                showManageTagsModal(); // 打开删除管理器
+                showManageTagsModal();
                 renderEditor();
                 return;
             }
 
+            if (!Array.isArray(entry.tags)) entry.tags = [];
+
             if (val.startsWith('builtIn:')) {
-                entry.tag = val.split(':')[1];
+                const cat = val.split(':')[1];
+                entry.tag = cat; // 切换系统主分类
             } else if (val.startsWith('custom:')) {
-                entry.tag = 'auto'; // 主分类切为自动
-                const tagStr = val.split(':')[1]; // "图标|名称"
-                if (!Array.isArray(entry.tags)) entry.tags = [];
-                if (!entry.tags.includes(tagStr)) entry.tags.push(tagStr);
+                const tagStr = val.split(':')[1]; // 格式 "Emoji|名称"
+                // 🔒 严格去重检查：只有当前条目还没有这个标签时才添加
+                if (!entry.tags.includes(tagStr)) {
+                    entry.tags.push(tagStr);
+                }
             }
 
             saveToLocal();
@@ -2838,38 +2842,69 @@ ${extraContext.trim()}`;
             });
         }
 
-        // 4. 渲染条目编辑区下方的已选标签徽章（外观与列表完全一致，可点 × 移除）
+        // 🏷️ 渲染当前条目的所有标签徽章（无论新旧，每一个都带 × 按钮）
         function renderEntryCustomTagChips(entry) {
             if (!entry) return '';
-            let html = '';
-            // 主分类徽章（自动判定 + 手动覆盖，auto/none 不显示）
-            const type = getEntryCategoryType(entry);
-            if (type && type !== 'none') {
-                const mainTag = parseTagObj(type);
-                html += `<span class="tag-chip ${mainTag.cssClass}">${mainTag.icon} ${escHtml(mainTag.name)}</span>`;
+
+            // 收集该条目的所有有效标签，并进行严格去重
+            const allTags = [];
+
+            // 1. 兼容旧版系统主分类 (非 auto / none 时)
+            if (entry.tag && entry.tag !== 'auto' && entry.tag !== 'none') {
+                allTags.push(`builtin:${entry.tag}`);
             }
-            // 附加的自定义标签
-            if (Array.isArray(entry.tags) && entry.tags.length > 0) {
+
+            // 2. 收集 entry.tags 数组中的标签
+            if (Array.isArray(entry.tags)) {
                 entry.tags.forEach(t => {
-                    const tagObj = parseTagObj(t);
-                    const safeRaw = escHtml(String(t)).replace(/'/g, "\\'");
-                    html += `<span class="tag-chip ${tagObj.cssClass}">
-                        ${tagObj.icon} ${escHtml(tagObj.name)}
-                        <span class="remove-btn" onclick="removeEntryCustomTag('${safeRaw}')" title="移除标签">×</span>
-                    </span>`;
+                    if (t && !allTags.includes(t)) {
+                        allTags.push(t);
+                    }
                 });
             }
-            return html || '<span style="font-size:11px;color:var(--text-muted);">（当前暂未附加标签）</span>';
+
+            if (allTags.length === 0) {
+                return '<span style="font-size:11px;color:var(--text-muted);">（当前暂未挂载任何标签）</span>';
+            }
+
+            return allTags.map(rawTag => {
+                let tagObj;
+                if (rawTag.startsWith('builtin:')) {
+                    tagObj = parseTagObj(rawTag.split(':')[1]);
+                } else {
+                    tagObj = parseTagObj(rawTag);
+                }
+
+                const safeTagStr = escHtml(rawTag).replace(/'/g, "\\'");
+                return `<span class="tag-chip ${tagObj.cssClass}">
+                    ${tagObj.icon} ${escHtml(tagObj.name)}
+                    <span class="remove-btn" onclick="removeTagFromEntry('${safeTagStr}')" title="移除此标签">×</span>
+                </span>`;
+            }).join('');
         }
 
-        // 5. 点击 × 移除自定义标签
-        function removeEntryCustomTag(tag) {
+        // 🗑️ 终极万能删除函数：彻底解决“旧标签删不掉”的问题
+        function removeTagFromEntry(tagToRemove) {
             const entry = getCurrentEntry();
-            if (!entry || !Array.isArray(entry.tags)) return;
-            entry.tags = entry.tags.filter(t => t !== tag);
-            saveToLocal();
-            renderEntries();
-            renderEditor();
+            if (!entry) return;
+
+            if (tagToRemove.startsWith('builtin:')) {
+                // 如果删的是旧系统主分类，把 entry.tag 清空/重置
+                entry.tag = 'none';
+            } else {
+                // 如果删的是 entry.tags 数组里的标签
+                if (Array.isArray(entry.tags)) {
+                    entry.tags = entry.tags.filter(t => t !== tagToRemove);
+                }
+                // 如果 entry.tag 刚好也等于这个自定义标签，一并清空
+                if (entry.tag === tagToRemove) {
+                    entry.tag = 'none';
+                }
+            }
+
+            saveToLocal();   // 保存持久化
+            renderEntries(); // 刷新中间栏条目列表
+            renderEditor();  // 刷新右侧编辑器
         }
 
         // 4. 弹出全局标签管理器（支持删除）
