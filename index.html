@@ -4687,7 +4687,7 @@ ${extraContext.trim()}`;
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = async function (e) {
+            reader.onload = function (e) {
                 try {
                     const result = importSillyTavernPreset(e.target.result);
 
@@ -4696,28 +4696,111 @@ ${extraContext.trim()}`;
                         return;
                     }
 
+                    const newBlocks = result.blocks;
+
                     // 挂载到当前预设管理集中（不存在则新建，以文件名命名）
                     if (!promptPresets[currentPromptId]) {
                         const presetId = 'prompt_' + Date.now();
                         promptPresets[presetId] = { name: file.name.replace(/\.[^/.]+$/, ""), blocks: [] };
                         currentPromptId = presetId;
                     }
+                    const preset = promptPresets[currentPromptId];
+                    if (!Array.isArray(preset.blocks)) preset.blocks = [];
 
-                    // 覆盖 Blocks（遵循万能导入引擎产出的标准结构）
-                    promptPresets[currentPromptId].blocks = result.blocks;
-
-                    // 刷新 UI 与本地持久化
-                    if (typeof initBlockEditor === 'function') initBlockEditor();
-                    if (typeof renderBlockEditor === 'function') renderBlockEditor();
-                    if (typeof renderDropdowns === 'function') renderDropdowns();
-                    if (typeof saveToLocal === 'function') saveToLocal();
-
-                    showToast(`✅ 成功导入酒馆预设！共加载 ${result.count} 个规则模块。`);
+                    // 🔍 判断当前是否已经装载了旧预设
+                    if (preset.blocks.length > 0) {
+                        // 弹出选择框，让用户自由决定追加还是替换
+                        showModal('📥 导入酒馆预设', {
+                            bodyHTML: `
+                                <div style="font-size:13px; color:#ddd; line-height:1.6; padding:8px 0;">
+                                    检测到当前预设「${escHtml(preset.name)}」中已装载 <b style="color:#8ecbff;">${preset.blocks.length}</b> 条规则块。<br>
+                                    本次导入包含 <b style="color:#6ee7b7;">${newBlocks.length}</b> 条新规则块，请选择处理方式：
+                                </div>
+                            `,
+                            confirmText: '➕ 追加合并 (保留现有并新增)',
+                            cancelText: '🔄 完全覆盖 (替换全部旧预设)',
+                            onConfirm: () => {
+                                appendPresetBlocks(newBlocks); // 执行追加合并
+                                closeModal();
+                            },
+                            onCancel: () => {
+                                // 执行完全覆盖
+                                preset.blocks = newBlocks;
+                                if (typeof initBlockEditor === 'function') initBlockEditor(); // 同步工作副本
+                                saveToLocal();
+                                renderBlockEditor();
+                                renderDropdowns();
+                                closeModal();
+                                showToast(`已清空旧预设，并加载 ${newBlocks.length} 条新规则！`);
+                            }
+                        });
+                    } else {
+                        // 当前为空，直接加载
+                        preset.blocks = newBlocks;
+                        if (typeof initBlockEditor === 'function') initBlockEditor(); // 同步工作副本
+                        saveToLocal();
+                        renderBlockEditor();
+                        renderDropdowns();
+                        showToast(`✅ 成功导入酒馆预设！共加载 ${newBlocks.length} 个规则模块。`);
+                    }
                 } catch (err) {
+                    console.error('预设文件解析失败:', err);
                     showToast('❌ 文件读取解析失败，非标准 JSON 数据');
                 }
             };
             reader.readAsText(file);
+        }
+
+        // 🧩 辅助函数：安全追加预设规则块（自动去重与 ID 防重）
+        function appendPresetBlocks(newBlocks) {
+            const preset = promptPresets[currentPromptId];
+            if (!preset) return;
+            if (!Array.isArray(preset.blocks)) preset.blocks = [];
+
+            let addedCount = 0;
+            let skippedCount = 0;
+
+            newBlocks.forEach(newB => {
+                // 生成全新防重复的唯一 ID
+                const uniqueId = 'preset_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+
+                // 🔒 查重：判断名称和内容是否完全一致（防止重复导入一模一样的卡片）
+                const isExactDuplicate = preset.blocks.some(existB =>
+                    existB.name === newB.name && existB.content === newB.content
+                );
+
+                if (isExactDuplicate) {
+                    skippedCount++;
+                    return; // 跳过完全重复项
+                }
+
+                // 🏷️ 处理同名但内容不同的情况，给名称做区分重命名
+                let finalName = newB.name || '未命名规则';
+                const hasSameName = preset.blocks.some(existB => existB.name === finalName);
+                if (hasSameName) {
+                    finalName = `${finalName} (新导入)`;
+                }
+
+                // 插入追加队列
+                preset.blocks.push({
+                    ...newB,
+                    id: uniqueId,
+                    name: finalName,
+                    enabled: newB.enabled !== undefined ? newB.enabled : true
+                });
+                addedCount++;
+            });
+
+            saveToLocal();            // 保存到持久化缓存
+            if (typeof initBlockEditor === 'function') initBlockEditor(); // 同步工作副本（含追加后的新块）
+            renderBlockEditor();      // 重新渲染块编辑器 UI
+            renderDropdowns();        // 刷新预设下拉
+
+            if (skippedCount > 0) {
+                showToast(`成功追加 ${addedCount} 条新规则（自动跳过了 ${skippedCount} 条完全相同的重复规则）`);
+            } else {
+                showToast(`成功追加 ${addedCount} 条新预设规则！`);
+            }
         }
 
         // ============================================================
