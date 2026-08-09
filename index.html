@@ -3963,68 +3963,65 @@ ${extraContext.trim()}`;
 
                 ${tagHTML}
 
-                <div class="editor-meta" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
-                    <!-- 🔑 基础触发设定 -->
-                    <div style="background: var(--bg-surface); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                        <div style="font-weight: bold; margin-bottom: 8px; color: var(--accent);">🔑 基础触发设定</div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="editor-meta" style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
+                    <!-- 🗝️ 触发与位置（单卡片紧凑布局，减少垂直占用） -->
+                    <div style="background: var(--bg-surface); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                            <span style="font-weight:bold; color:var(--accent); font-size:12px;">🗝️ 触发与位置设置</span>
+                            <span style="display:flex; gap:10px;">
+                                <label style="display:flex; align-items:center; gap:3px; cursor:pointer; margin-bottom:0; font-size:11px;">
+                                    <input type="checkbox" ${entry.constant ? 'checked' : ''} onchange="updateEntryField('constant', this.checked, 'boolean')">
+                                    🔵 常驻
+                                </label>
+                                <label style="display:flex; align-items:center; gap:3px; cursor:pointer; margin-bottom:0; font-size:11px;">
+                                    <input type="checkbox" ${entry.vectorized ? 'checked' : ''} onchange="updateEntryField('vectorized', this.checked, 'boolean')">
+                                    🔗 向量化
+                                </label>
+                            </span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
                             <div>
                                 <label>主关键词 (逗号分隔，支持 /正则/)</label>
                                 <input id="entry-keys-input" class="input-styled" value="${(entry.keys || []).join(', ')}" oninput="saveCurrentEntryField('keys', this.value)">
                             </div>
-                            <div style="display:flex; align-items:flex-end; gap: 15px; padding-bottom: 5px;">
-                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-                                    <input type="checkbox" ${entry.constant ? 'checked' : ''} onchange="updateEntryField('constant', this.checked, 'boolean')">
-                                    <span>🔵 常驻 (无视关键词)</span>
-                                </label>
-                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-                                    <input type="checkbox" ${entry.vectorized ? 'checked' : ''} onchange="updateEntryField('vectorized', this.checked, 'boolean')">
-                                    <span>🔗 向量化匹配</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 📍 上下文与位置策略 -->
-                    <div style="background: var(--bg-surface); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                        <div style="font-weight: bold; margin-bottom: 8px; color: var(--accent);">📍 上下文与位置策略</div>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                            <div>
-                                <label>插入位置 (Position)</label>
-                                <select class="select-styled" onchange="updateEntryField('position', this.value, 'number'); renderEditor();">
-                                    <option value="0" ${entry.position == 0 ? 'selected' : ''}>角色定义之前</option>
-                                    <option value="1" ${entry.position == 1 ? 'selected' : ''}>角色定义之后</option>
-                                    <option value="2" ${entry.position == 2 ? 'selected' : ''}>示例消息之前</option>
-                                    <option value="3" ${entry.position == 3 ? 'selected' : ''}>示例消息之后</option>
-                                    <option value="4" ${entry.position == 4 ? 'selected' : ''}>作者注记顶部</option>
-                                    <option value="5" ${entry.position == 5 ? 'selected' : ''}>作者注记底部</option>
-                                    <option value="6" ${entry.position == 6 ? 'selected' : ''}>@D 深度</option>
-                                    <option value="7" ${entry.position == 7 ? 'selected' : ''}>输出口 (Outlet)</option>
-                                </select>
-                            </div>
-                            ${entry.position == 6 ? `
-                            <div>
-                                <label>插入深度 (Depth)</label>
-                                <input type="number" class="input-styled" value="${entry.depth || 4}" onchange="updateEntryField('depth', this.value, 'number')">
-                            </div>
-                            <div>
-                                <label>角色分配 (Role)</label>
-                                <select class="select-styled" onchange="updateEntryField('role', this.value, 'number')">
-                                    <option value="0" ${entry.role == 0 ? 'selected' : ''}>⚙️ 系统 (System)</option>
-                                    <option value="1" ${entry.role == 1 ? 'selected' : ''}>👤 用户 (User)</option>
-                                    <option value="2" ${entry.role == 2 ? 'selected' : ''}>🤖 助手 (Assistant)</option>
-                                </select>
-                            </div>
-                            ` : ''}
-                            ${entry.position == 7 ? `
-                            <div style="grid-column: span 2;">
-                                <label>输出口名称 (用于 {{outlet::名称}} 宏)</label>
-                                <input type="text" class="input-styled" value="${escHtml(entry.outlet_name || '')}" placeholder="输入纯英文/拼音标识" onchange="updateEntryField('outlet_name', this.value, 'string')">
-                            </div>
-                            ` : ''}
-                            <div>
-                                <label>权重顺序 (Order)</label>
-                                <input type="number" class="input-styled" value="${entry.order || 100}" onchange="updateEntryField('order', this.value, 'number')">
+                            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+                                <div style="flex:1; min-width:140px;">
+                                    <label>插入位置 (Position)</label>
+                                    <select class="select-styled" onchange="updateEntryField('position', this.value, 'number'); renderEditor();">
+                                        <option value="0" ${entry.position == 0 ? 'selected' : ''}>角色定义之前</option>
+                                        <option value="1" ${entry.position == 1 ? 'selected' : ''}>角色定义之后</option>
+                                        <option value="2" ${entry.position == 2 ? 'selected' : ''}>示例消息之前</option>
+                                        <option value="3" ${entry.position == 3 ? 'selected' : ''}>示例消息之后</option>
+                                        <option value="4" ${entry.position == 4 ? 'selected' : ''}>作者注记顶部</option>
+                                        <option value="5" ${entry.position == 5 ? 'selected' : ''}>作者注记底部</option>
+                                        <option value="6" ${entry.position == 6 ? 'selected' : ''}>@D 深度</option>
+                                        <option value="7" ${entry.position == 7 ? 'selected' : ''}>输出口 (Outlet)</option>
+                                    </select>
+                                </div>
+                                <div style="flex:0 0 90px;">
+                                    <label>顺序 (Order)</label>
+                                    <input type="number" class="input-styled" value="${entry.order || 100}" onchange="updateEntryField('order', this.value, 'number')">
+                                </div>
+                                ${entry.position == 6 ? `
+                                <div style="flex:0 0 90px;">
+                                    <label>深度 (Depth)</label>
+                                    <input type="number" class="input-styled" value="${entry.depth || 4}" onchange="updateEntryField('depth', this.value, 'number')">
+                                </div>
+                                <div style="flex:1; min-width:120px;">
+                                    <label>角色 (Role)</label>
+                                    <select class="select-styled" onchange="updateEntryField('role', this.value, 'number')">
+                                        <option value="0" ${entry.role == 0 ? 'selected' : ''}>⚙️ 系统 (System)</option>
+                                        <option value="1" ${entry.role == 1 ? 'selected' : ''}>👤 用户 (User)</option>
+                                        <option value="2" ${entry.role == 2 ? 'selected' : ''}>🤖 助手 (Assistant)</option>
+                                    </select>
+                                </div>
+                                ` : ''}
+                                ${entry.position == 7 ? `
+                                <div style="flex:1; min-width:140px;">
+                                    <label>输出口名称 ({{outlet::名称}})</label>
+                                    <input type="text" class="input-styled" value="${escHtml(entry.outlet_name || '')}" placeholder="纯英文/拼音标识" onchange="updateEntryField('outlet_name', this.value, 'string')">
+                                </div>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
