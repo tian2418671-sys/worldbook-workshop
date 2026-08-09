@@ -1333,7 +1333,8 @@
             line-height: 1.5;
             word-wrap: break-word;
             white-space: pre-wrap;
-            /* 🆕 修复：约束气泡宽度，防止长内容/代码块把气泡撑成一大片 */
+            /* 🆕 修复：气泡贴合内容宽度（几个字就是小气泡），长内容仍受 100% 上限约束 */
+            width: fit-content;
             max-width: 100%;
             min-width: 0;
             overflow-wrap: break-word;
@@ -3972,13 +3973,11 @@ ${extraContext.trim()}`;
                 const detailBtn = hasDetail
                     ? `<div class="chat-detail-row"><button class="chat-detail-btn" onclick="viewChatDetails(${i})" title="查看完整AI回复与隐藏对话信息">🕵️ 详情</button></div>`
                     : '';
+                // 注意：bodyHTML 必须紧贴标签（无换行/缩进），否则 white-space:pre-wrap 会把模板空白渲染成多余空行
                 return `
                 <div class="chat-row ${isAssistant ? 'assistant' : 'user'}">
                     <div class="chat-avatar">${isAssistant ? '🤖' : '🧑'}</div>
-                    <div class="chat-bubble ${isAssistant ? 'assistant' : 'user'}">
-                        ${bodyHTML}
-                        ${detailBtn}
-                    </div>
+                    <div class="chat-bubble ${isAssistant ? 'assistant' : 'user'}">${bodyHTML}${detailBtn}</div>
                 </div>
             `;
             }).join('') + `<div id="chatAnchor"></div>`; // 锚点用于滚动到底部
