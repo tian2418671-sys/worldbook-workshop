@@ -1492,6 +1492,8 @@
                     onclick="showModal('新建世界书')">＋ 新建</button>
                 <button class="btn btn-sm" style="flex: 1; justify-content:center;" onclick="handleImportWorldbook()"
                     title="导入本地 JSON">📥 导入</button>
+                <button class="btn btn-sm" style="flex: 1; justify-content:center;" onclick="refreshAll()"
+                    title="刷新界面（无需刷新网页）">🔄</button>
             </div>
             <button class="btn btn-sm" style="width: 100%; justify-content:center; margin-top: 4px;"
                 onclick="exportWorldbook()" title="导出当前选中世界书">📤 导出当前世界书</button>
@@ -1915,6 +1917,17 @@
                 promptSelect.innerHTML = Object.keys(promptPresets).map(id => `<option value="${id}">${promptPresets[id].name}</option>`).join('');
                 promptSelect.value = currentPromptId;
             }
+        }
+
+        // 🚀 整体刷新：强制落盘 + 重渲染全部面板（等效于不刷新网页的"软刷新"）
+        function refreshAll() {
+            try { _saveToLocalCore(); } catch (e) {}   // 先强制保存，避免丢失未落盘的修改
+            renderDropdowns();
+            renderAll();
+            renderChatSessions();
+            renderChatMessages();
+            updateChatModeBadge();
+            showToast('🔄 已刷新界面');
         }
 
         // 将旧格式预设 (system/user 字段) 自动迁移为 blocks 结构
