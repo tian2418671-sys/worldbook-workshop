@@ -3829,7 +3829,11 @@ ${extraContext.trim()}`;
                 // 呼叫 API 并传入流式回调 + 工具箱（读写模式挂载原生 update_worldbook 工具）
                 const responseObj = await fetchAICompletion('设定交流助手', apiMessages, (partialText, isToolCalling) => {
                     const cur = chatMessages[chatMessages.length - 1];
-                    if (cur && cur.role === 'assistant') cur.content = partialText || '';
+                    if (cur && cur.role === 'assistant') {
+                        cur.content = partialText || '';
+                        // 🆕 同步保存原始流式文本（含 <think> 块/代码块），即使请求中断/异常，已接收的原始内容也不会丢失
+                        cur._raw = partialText || '';
+                    }
                     const chatContainer = document.getElementById('chatMessages');
                     if (!chatContainer) return;
                     const bubbles = chatContainer.querySelectorAll('.chat-row.assistant .chat-bubble');
@@ -3909,6 +3913,8 @@ ${extraContext.trim()}`;
                     chatMessages.push(msgData);
                 }
                 renderChatMessages();
+                // 🆕 消息确定后立即持久化（含完整 _raw 与隐藏上下文），防止后续流程异常或提前关闭导致对话/原始回复丢失
+                saveToLocal();
 
                 // 只读模式：不执行任何数据修改
                 if (!allowModify) return;
