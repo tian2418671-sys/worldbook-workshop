@@ -4807,12 +4807,12 @@ ${extraContext.trim()}`;
         //  📦 多预设总条目系统（总条目库管理 + 导入新建 + 渲染 + AI 编译）
         // ============================================================
 
-        // 🧠 辅助函数：安全解码（专门对付 %E4%B8%AD 这种 URL 乱码）
+        // 🧠 辅助函数：安全解码（专门对付 %E4%B8%AD 这种 URL 乱码，以及表单编码的加号变空格）
         function safeDecode(str) {
             if (!str) return '';
             try {
-                // 如果是 URL 编码格式的乱码，这里会把它还原成正常中文
-                return decodeURIComponent(str);
+                // 若是 URL 编码格式的乱码则还原成正常中文；同时把加号还原为空格（application/x-www-form-urlencoded 习惯）
+                return decodeURIComponent(str.replace(/\+/g, '%20'));
             } catch (e) {
                 return str;
             }
