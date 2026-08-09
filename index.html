@@ -2179,6 +2179,9 @@
             renderChatSessions();
             renderChatMessages();
 
+            // 🚀 初始化撤回基线：记录加载后的初始状态，使"第一次修改"即可被撤回
+            try { lastSavedData = JSON.parse(JSON.stringify(buildSaveData())); } catch (e) {}
+
             // 🚀 启动主题、自动快照与崩溃恢复
             initTheme();
             startAutoSnapshot();
