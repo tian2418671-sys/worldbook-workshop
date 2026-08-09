@@ -4698,7 +4698,7 @@ ${learned.sample}
         //  全局知识数据库（静态挂载参考模块，平行于世界书）
         // ============================================================
         /**
-         * 显示并管理全局知识数据库 (升级版：分类筛选 + 批量开关 + 单条编辑)
+         * 显示并管理全局知识数据库 (防崩容错版：分类筛选 + 批量开关 + 单条编辑)
          */
         function showDatabaseModal() {
             // 提取所有不重复的知识库来源
@@ -4719,14 +4719,19 @@ ${learned.sample}
                 return filteredDB.map((item) => {
                     // 找出它在全局数组中的真实索引（保证后续操作定位准确）
                     const realIndex = knowledgeDatabase.findIndex(dbItem => dbItem.id === item.id);
+                    // 防御性转换：确保 name / source / content 绝对是安全字符串（杜绝 undefined 崩溃）
+                    const safeName = item.name ? String(item.name) : '未命名资料';
+                    const safeSource = item.source ? String(item.source) : '未分类';
+                    const safeContent = item.content ? String(item.content) : '';
+
                     return `
                     <div style="display:flex; justify-content:space-between; align-items:center; background:#2a2a2b; padding:10px; margin-bottom:8px; border-radius:6px; border-left: 4px solid ${item.enabled ? '#4ec9b0' : '#555'};">
                         <div style="flex:1; overflow:hidden; cursor:pointer;" onclick="editDatabaseItem(${realIndex})">
                             <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                                <span style="font-weight:bold; color:#ddd; font-size:14px;">${escHtml(item.name)}</span>
-                                <span style="font-size:10px; background:#444; padding:2px 6px; border-radius:10px; color:#aaa;">${escHtml(item.source || '未分类')}</span>
+                                <span style="font-weight:bold; color:#ddd; font-size:14px;">${escHtml(safeName)}</span>
+                                <span style="font-size:10px; background:#444; padding:2px 6px; border-radius:10px; color:#aaa;">${escHtml(safeSource)}</span>
                             </div>
-                            <div style="font-size:12px; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(item.content)}</div>
+                            <div style="font-size:12px; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(safeContent)}</div>
                         </div>
                         <div style="display:flex; gap:10px; align-items:center; margin-left:15px;">
                             <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:#aaa; font-size:13px;">
@@ -4806,25 +4811,30 @@ ${learned.sample}
         }
 
         /**
-         * 深度编辑单条数据库资料
+         * 深度编辑单条数据库资料 (带防崩保护)
          */
         function editDatabaseItem(index) {
             const item = knowledgeDatabase[index];
             if (!item) return;
 
+            // 防御性转义处理：先 String() 兜底杜绝 undefined 导致 .replace() 崩溃，再做 HTML 安全转义
+            const safeName = item.name ? String(item.name) : '未命名资料';
+            const safeSource = item.source ? String(item.source) : '未分类';
+            const safeContent = item.content ? String(item.content) : '';
+
             const bodyHTML = `
                 <div style="display:flex; flex-direction:column; gap:12px;">
                     <div>
                         <label style="font-size:12px; color:#ddd; font-weight:bold;">资料名称：</label>
-                        <input type="text" id="editDbName" value="${escAttr(item.name)}" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; margin-top:4px;">
+                        <input type="text" id="editDbName" value="${escAttr(safeName)}" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; margin-top:4px;">
                     </div>
                     <div>
                         <label style="font-size:12px; color:#ddd; font-weight:bold;">知识库来源 (分组标签)：</label>
-                        <input type="text" id="editDbSource" value="${escAttr(item.source || '未分类')}" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; margin-top:4px;">
+                        <input type="text" id="editDbSource" value="${escAttr(safeSource)}" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; margin-top:4px;">
                     </div>
                     <div>
                         <label style="font-size:12px; color:#ddd; font-weight:bold;">核心内容 (AI 参考的底层逻辑)：</label>
-                        <textarea id="editDbContent" rows="8" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; font-family:monospace; margin-top:4px;">${escHtml(item.content)}</textarea>
+                        <textarea id="editDbContent" rows="8" style="width:100%; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:8px; font-family:monospace; margin-top:4px;">${escHtml(safeContent)}</textarea>
                     </div>
                 </div>
             `;
@@ -4852,7 +4862,7 @@ ${learned.sample}
         }
 
         /**
-         * 解析上传的世界书文件，并将其转换为静态数据库条目（带来源分组）
+         * 解析上传的世界书文件，并将其转换为静态数据库条目（完美修复名称异常版）
          * 兼容：酒馆标准导出（entries 为 { uid: {...} } 对象）、纯数组、以及 data.entries 数组
          */
         async function importToDatabase(inputElement) {
@@ -4878,17 +4888,43 @@ ${learned.sample}
                     }
 
                     let importCount = 0;
-                    entries.forEach(entry => {
+                    entries.forEach((entry) => {
                         if (!entry || typeof entry !== 'object') return;
-                        // 兼容不同的字段名
-                        const name = entry.name || entry.comment || (Array.isArray(entry.keys) && entry.keys[0]) || '未命名资料';
                         const content = entry.content || entry.text || '';
+
                         if (content.trim() !== '') {
+                            // 🧠 1. 智能且绝对安全的名称萃取引擎 (多重兜底，杜绝空数组 truthy 陷阱)
+                            let rawName = entry.name || entry.title || entry.comment || entry.label || entry.displayName;
+
+                            if (!rawName) {
+                                // 严谨校验 keys / key (兼容数组与字符串，空数组直接跳过)
+                                if (Array.isArray(entry.keys) && entry.keys.length > 0) {
+                                    rawName = entry.keys.filter(k => k && String(k).trim()).join(', ');
+                                } else if (typeof entry.keys === 'string' && entry.keys.trim()) {
+                                    rawName = entry.keys;
+                                } else if (Array.isArray(entry.key) && entry.key.length > 0) {
+                                    rawName = entry.key.filter(k => k && String(k).trim()).join(', ');
+                                } else if (typeof entry.key === 'string' && entry.key.trim()) {
+                                    rawName = entry.key;
+                                }
+                            }
+
+                            // 🧠 2. 若依然无有效名称，截取内容前15字或序号，绝不返回 undefined
+                            let finalName = '';
+                            if (rawName && String(rawName).trim()) {
+                                finalName = String(rawName).trim();
+                            } else if (content.trim()) {
+                                const cleanContent = content.trim().replace(/[\r\n\t]+/g, ' ');
+                                finalName = cleanContent.length > 15 ? cleanContent.substring(0, 15) + '...' : cleanContent;
+                            } else {
+                                finalName = `未命名资料 #${knowledgeDatabase.length + importCount + 1}`;
+                            }
+
                             knowledgeDatabase.push({
                                 id: 'db_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                                name: name,
+                                name: finalName,
                                 content: content,
-                                source: sourceName, // 新增：记录它的知识库来源
+                                source: sourceName,
                                 enabled: false // 默认不开启，由用户手动决定
                             });
                             importCount++;
