@@ -4926,7 +4926,10 @@ ${extraContext.trim()}`;
                 blocksHTML = blocks.map((b, idx) => `
                     <div class="preset-block-card" style="background: #242424; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
-                            <span style="font-size: 12px; color: #aaa; font-weight: bold;">#${idx + 1} ${escHtml(b.identifier || b.name || '未命名规则')}</span>
+                            <span style="display:flex; align-items:center; gap:6px; min-width:0;">
+                                <button type="button" onclick="togglePresetBlockExpand(${idx}, this)" title="展开/收起内容" style="flex:0 0 auto; background:#333;color:#aaa;border:none;padding:2px 8px;border-radius:3px;font-size:12px;cursor:pointer;">▸</button>
+                                <span style="font-size: 12px; color: #aaa; font-weight: bold;">#${idx + 1} ${escHtml(b.identifier || b.name || '未命名规则')}</span>
+                            </span>
                             <span style="display:flex; gap:6px; align-items:center;">
                                 <label style="font-size: 12px; color: #8ecbff; cursor: pointer;">
                                     <input type="checkbox" ${b.enabled ? 'checked' : ''} onchange="togglePresetBlockEnabled(${idx}, this.checked)"> 启用
@@ -4936,19 +4939,33 @@ ${extraContext.trim()}`;
                                 <button onclick="removePresetBlock(${idx})" style="background:#8b2626;color:white;border:none;padding:2px 8px;border-radius:3px;font-size:12px;cursor:pointer;" title="删除该子规则">🗑️</button>
                             </span>
                         </div>
-                        <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
-                            <select style="flex:0 0 90px; background:#181818;color:#ddd;border:1px solid #383838;border-radius:4px;font-size:12px;padding:3px;" onchange="updatePresetBlockField(${idx}, 'role', this.value)">
-                                <option value="system" ${String(b.role || 'system') === 'system' ? 'selected' : ''}>system</option>
-                                <option value="user" ${String(b.role || '') === 'user' ? 'selected' : ''}>user</option>
-                            </select>
-                            <input value="${escAttr(b.identifier || b.name || '')}" placeholder="规则名称" style="flex:1; background:#181818;color:#ddd;border:1px solid #383838;border-radius:4px;font-size:12px;padding:3px 6px;" onchange="updatePresetBlockField(${idx}, 'name', this.value);updatePresetBlockField(${idx}, 'identifier', this.value)" />
+                        <div class="preset-block-body" data-preset-block-body="${idx}" style="display:none;">
+                            <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
+                                <select style="flex:0 0 90px; background:#181818;color:#ddd;border:1px solid #383838;border-radius:4px;font-size:12px;padding:3px;" onchange="updatePresetBlockField(${idx}, 'role', this.value)">
+                                    <option value="system" ${String(b.role || 'system') === 'system' ? 'selected' : ''}>system</option>
+                                    <option value="user" ${String(b.role || '') === 'user' ? 'selected' : ''}>user</option>
+                                </select>
+                                <input value="${escAttr(b.identifier || b.name || '')}" placeholder="规则名称" style="flex:1; background:#181818;color:#ddd;border:1px solid #383838;border-radius:4px;font-size:12px;padding:3px 6px;" onchange="updatePresetBlockField(${idx}, 'name', this.value);updatePresetBlockField(${idx}, 'identifier', this.value)" />
+                            </div>
+                            <textarea style="width: 100%; height: 60px; background: #181818; color: #ddd; border: 1px solid #383838; border-radius: 4px; font-size: 12px; padding: 6px; box-sizing: border-box; resize: vertical;" onchange="updatePresetBlockField(${idx}, 'content', this.value)">${escHtml(b.content || '')}</textarea>
                         </div>
-                        <textarea style="width: 100%; height: 60px; background: #181818; color: #ddd; border: 1px solid #383838; border-radius: 4px; font-size: 12px; padding: 6px; box-sizing: border-box; resize: vertical;" onchange="updatePresetBlockField(${idx}, 'content', this.value)">${escHtml(b.content || '')}</textarea>
                     </div>
                 `).join('');
             }
 
             container.innerHTML = topBarHTML + blocksHTML;
+        }
+
+        // ▸ 展开/收起子规则内容
+        function togglePresetBlockExpand(idx, btn) {
+            const container = document.getElementById('preset-blocks-container');
+            if (!container || !btn) return;
+            const body = container.querySelector(`[data-preset-block-body="${idx}"]`);
+            if (!body) return;
+            const expanded = body.style.display !== 'none';
+            body.style.display = expanded ? 'none' : '';
+            btn.textContent = expanded ? '▸' : '▾';
+            btn.title = expanded ? '展开内容' : '收起内容';
         }
 
         // 切换当前激活的预设总条目
