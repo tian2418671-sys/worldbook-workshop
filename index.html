@@ -4818,17 +4818,6 @@ ${extraContext.trim()}`;
             }
         }
 
-        // 🕵️ 核心黑科技：乱码防御引擎（识别编码错位产生的“火星文”）
-        function isGarbled(str) {
-            if (!str) return false;
-            // U+FFFD 替换字符（经典黑色问号 �）——注意不能用 includes('')，空串恒为 true
-            if (str.includes('\uFFFD')) return true;
-            // 当 UTF-8 中文被错误保存为 ANSI 时，会产生大量拉丁符号堆叠（如 é、¢、è、®、¾）
-            // 只要连续出现 3 个以上此区间的怪异字符，直接判定为乱码！
-            if (/[\u0080-\u00FF]{3,}/.test(str)) return true;
-            return false;
-        }
-
         // 📥 万能酒馆预设导入：每次导入直接新建一个"预设总条目"（带防乱码机制，支持无参弹文件框）
         function handlePresetImport(file) {
             if (!file) {
@@ -4877,17 +4866,11 @@ ${extraContext.trim()}`;
                         };
                     });
 
-                    // 3. 🛡️ 决定最终的预设总条目名称（乱码安检：内部名称若为火星文则回退外部干净文件名）
+                    // 3. 提取总条目名称（优先读取 JSON name，否则使用文件名，均套解码保护）
                     let rawFileName = file.name.replace(/\.[^/.]+$/, '').trim();
-                    let masterName = safeDecode(rawFileName); // 兜底：使用外部干净的文件名
-                    if (json.name && typeof json.name === 'string') {
-                        let internalName = safeDecode(String(json.name).trim());
-                        // 只有当内部名字存在，且【绝对不是乱码】时，才允许它覆盖外部文件名
-                        if (internalName && !isGarbled(internalName)) {
-                            masterName = internalName;
-                        } else if (internalName && isGarbled(internalName)) {
-                            console.warn('⚠️ 拦截到文件内部名称存在乱码，已强制回退使用外部文件名。');
-                        }
+                    let masterName = safeDecode(rawFileName); // 🛡️ 给文件名套上解码保护
+                    if (json.name) {
+                        masterName = safeDecode(String(json.name).trim()); // 🛡️ 给 JSON 内部名称套上保护
                     }
 
                     // 防重名命名处理
