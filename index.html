@@ -637,6 +637,29 @@
             border-color: var(--accent);
         }
 
+        /* 🆕 折叠分类式编辑器：通用输入控件与卡片样式 */
+        .input-styled {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: var(--text-primary);
+            font-size: 12px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .input-styled:focus { border-color: var(--accent); }
+        .editor-meta > div > div label,
+        .editor-meta details label {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: block;
+            margin-bottom: 4px;
+        }
+        .editor-meta select.select-styled { width: 100%; box-sizing: border-box; }
+        .editor-meta details summary { font-size: 13px; }
+
         .editor-content {
             flex: 1;
             display: flex;
@@ -2563,7 +2586,7 @@ ${extraContext.trim()}`;
                 const formatContract = `【绝对输出指令】请严格遵循上述世界书架构师规则进行分析与决策。
 但最终输出格式例外：你必须且只能输出一个合法的 JSON 数组（不要输出任何 Markdown，也不要输出上文第五节的文本格式）。
 数组中每个对象对应一个条目，字段为：
-{"uid":条目UID, "name":推荐条目名(仅当有明确合法名称时), "keys":["关键字1","关键字2"], "depth":整数, "order":整数, "position":"角色定义之前"|"角色定义之后"|"作者注记顶部"|"作者注记底部"|"@D"|"@D 系统"|"@D 用户"|"@D 助手"|"示例消息之前"|"示例消息之后"|"输出口"|数字, "probability":0-100整数, "selectiveLogic":0|1|2|3, "excludeRecursion":true|false, "sticky":数值或省略, "cooldown":数值或省略, "delay":数值或省略}
+{"uid":条目UID, "name":推荐条目名(仅当有明确合法名称时), "keys":["关键字1","关键字2"], "depth":整数, "order":整数, "position":"角色定义之前"|"角色定义之后"|"示例消息之前"|"示例消息之后"|"作者注记顶部"|"作者注记底部"|"@D"|"输出口"|数字, "role":0|1|2(仅@D时:0系统/1用户/2助手), "outlet_name":"输出口名称(仅输出口时)", "probability":0-100整数, "selectiveLogic":0|1|2|3, "sticky":数值或省略, "cooldown":数值或省略, "delay":数值或省略, "case_sensitive":true|false, "match_whole_words":true|false, "prevent_recursion":true|false, "excludeRecursion":true|false}
 必须为接收到的每一个条目都输出一条记录。`;
                 apiMessages.push({ role: 'system', content: tuningRules + '\n\n' + formatContract });
             } else {
@@ -2595,7 +2618,7 @@ ${extraContext.trim()}`;
                     case '生成': userMessage = `请根据关键词“${extraContext}”生成一段设定。`; break;
                     case '审查': userMessage = `审查以下条目设定是否合理：\n【触发逻辑】：${entry ? entry.selectiveLogic : 0}\n【内容】：${entry ? entry.content : ''}\n给出优化建议。`; break;
                     case '智能调优':
-                        const allEntriesSummary = getEntriesArray().map(e => `- [UID:${e.uid}] 关键词:${e.keys.join('/')} | 位置:${positionLabel(e.position)} | 顺序:${e.order} | 深度:${e.depth}`).join('\n');
+                        const allEntriesSummary = getEntriesArray().map(e => `- [UID:${e.uid}] 关键词:${e.keys.join('/')} | 位置:${positionLabel(e.position)}${e.position === 6 ? ' 角色:' + roleLabel(e.role) : ''}${e.position === 7 && e.outlet_name ? ' 输出口:' + e.outlet_name : ''} | 顺序:${e.order} | 深度:${e.depth}`).join('\n');
                         userMessage = `以下是世界书快照：\n${allEntriesSummary}\n请输出 JSON 数组。`;
                         break;
                     case '批量': userMessage = `从文本中提取概念生成条目JSON数组。\n【设定文本】：\n${extraContext}`; break;
@@ -2751,10 +2774,20 @@ ${extraContext.trim()}`;
                                 if (pos !== null) entriesArr[idx].position = pos;
                                 if (aiEntry.depth !== undefined && aiEntry.depth !== null) entriesArr[idx].depth = parseInt(aiEntry.depth) || entriesArr[idx].depth;
                                 if (aiEntry.order !== undefined && aiEntry.order !== null) entriesArr[idx].order = parseInt(aiEntry.order) || entriesArr[idx].order;
-                                // 🆕 补充：触发概率 / 触发逻辑 / 防递归（智能调优完整参数支持）
+                                // 触发概率 / 触发逻辑 / 防递归
                                 if (aiEntry.probability !== undefined && aiEntry.probability !== null) entriesArr[idx].probability = parseInt(aiEntry.probability) || entriesArr[idx].probability;
                                 if (aiEntry.selectiveLogic !== undefined && aiEntry.selectiveLogic !== null) entriesArr[idx].selectiveLogic = parseInt(aiEntry.selectiveLogic) || entriesArr[idx].selectiveLogic;
                                 if (aiEntry.excludeRecursion !== undefined && aiEntry.excludeRecursion !== null) entriesArr[idx].excludeRecursion = Boolean(aiEntry.excludeRecursion);
+                                // 🆕 ST 扩展字段：@D 角色 / 输出口 / 定时效果 / 匹配设置 / 递归
+                                if (aiEntry.role !== undefined && aiEntry.role !== null) entriesArr[idx].role = parseInt(aiEntry.role) || 0;
+                                if (aiEntry.outlet_name !== undefined) entriesArr[idx].outlet_name = String(aiEntry.outlet_name || '');
+                                if (aiEntry.sticky !== undefined && aiEntry.sticky !== null) entriesArr[idx].sticky = parseInt(aiEntry.sticky) || 0;
+                                if (aiEntry.cooldown !== undefined && aiEntry.cooldown !== null) entriesArr[idx].cooldown = parseInt(aiEntry.cooldown) || 0;
+                                if (aiEntry.delay !== undefined && aiEntry.delay !== null) entriesArr[idx].delay = parseInt(aiEntry.delay) || 0;
+                                if (aiEntry.case_sensitive !== undefined) entriesArr[idx].case_sensitive = Boolean(aiEntry.case_sensitive);
+                                if (aiEntry.match_whole_words !== undefined) entriesArr[idx].match_whole_words = Boolean(aiEntry.match_whole_words);
+                                if (aiEntry.prevent_recursion !== undefined) entriesArr[idx].prevent_recursion = Boolean(aiEntry.prevent_recursion);
+                                if (aiEntry.delay_until_recursion !== undefined) entriesArr[idx].delay_until_recursion = Boolean(aiEntry.delay_until_recursion);
                                 updatedCount++;
                             }
                         });
@@ -3187,21 +3220,18 @@ ${extraContext.trim()}`;
             else sel.value = 'all';
         }
 
-        // 将酒馆式位置字符串映射为应用内的数字 position 枚举（与 SillyTavern 官方枚举一致）
-        // 0=角色定义之前, 1=角色定义之后, 2=作者注记顶部, 3=作者注记底部, 4=@D, 5=示例消息之前, 6=示例消息之后, 7=输出口, 8=@D⚙️系统, 9=@D👤用户, 10=@D🤖助手
+        // 将酒馆式位置字符串映射为应用内的数字 position 枚举（SillyTavern 官方枚举）
+        // 0=角色定义之前 1=角色定义之后 2=示例消息之前 3=示例消息之后 4=作者注记顶部 5=作者注记底部 6=@D深度 7=输出口
         function mapPositionValue(pos) {
-            if (typeof pos === 'number') return (pos >= 0 && pos <= 10) ? pos : null;
+            if (typeof pos === 'number') return (pos >= 0 && pos <= 7) ? pos : null;
             const s = String(pos || '').trim().toLowerCase();
             if (['角色定义之前', '主提示前', 'before char', 'before_char', 'before main', 'beforemain', 'before_main'].includes(s)) return 0;
             if (['角色定义之后', '主提示后', 'after char', 'after_char', 'after main', 'aftermain', 'after_main'].includes(s)) return 1;
-            if (['作者注记顶部', '注释顶部', 'top an', 'top_an', 'top of authors note'].includes(s)) return 2;
-            if (['作者注记底部', '注释底部', 'bottom an', 'bottom_an', 'bottom of authors note'].includes(s)) return 3;
-            if (['@d 系统', '@d 系统消息', '@d system', '系统角色消息', '系统'].includes(s)) return 8;
-            if (['@d 用户', '@d 用户消息', '@d user', '用户角色消息', '用户'].includes(s)) return 9;
-            if (['@d 助手', '@d 助手消息', '@d assistant', '助手角色消息', '助手'].includes(s)) return 10;
-            if (['@d', 'at depth', 'at_depth', '深度', 'dynamic', '@d 深度'].includes(s)) return 4;
-            if (['示例消息之前', '示例顶部', 'before example', 'before_example'].includes(s)) return 5;
-            if (['示例消息之后', '示例底部', 'after example', 'after_example'].includes(s)) return 6;
+            if (['示例消息之前', '示例顶部', 'before example', 'before_example'].includes(s)) return 2;
+            if (['示例消息之后', '示例底部', 'after example', 'after_example'].includes(s)) return 3;
+            if (['作者注记顶部', '注释顶部', 'top an', 'top_an', 'top of authors note'].includes(s)) return 4;
+            if (['作者注记底部', '注释底部', 'bottom an', 'bottom_an', 'bottom of authors note'].includes(s)) return 5;
+            if (['@d', '@d 深度', '@d 系统', '@d 用户', '@d 助手', 'at depth', 'at_depth', '深度', 'dynamic'].includes(s)) return 6; // @D → 官方枚举 6
             if (['输出口', 'outlet', 'output', '出口'].includes(s)) return 7;
             return null; // 无法识别则保持原位置不变
         }
@@ -3209,11 +3239,16 @@ ${extraContext.trim()}`;
         // 将 position 枚举转为世界书文字名称（便于界面与 AI 快照辨认）
         function positionLabel(p) {
             const map = {
-                0: '角色定义之前', 1: '角色定义之后', 2: '作者注记顶部', 3: '作者注记底部',
-                4: '@D', 5: '示例消息之前', 6: '示例消息之后', 7: '输出口',
-                8: '@D ⚙️ 系统', 9: '@D 👤 用户', 10: '@D 🤖 助手'
+                0: '角色定义之前', 1: '角色定义之后', 2: '示例消息之前', 3: '示例消息之后',
+                4: '作者注记顶部', 5: '作者注记底部', 6: '@D', 7: '输出口'
             };
             return map[p] !== undefined ? map[p] : String(p);
+        }
+
+        // role 枚举 → 文字（@D 深度的角色分配）
+        function roleLabel(r) {
+            const map = { 0: '⚙️ 系统', 1: '👤 用户', 2: '🤖 助手' };
+            return map[r] !== undefined ? map[r] : '⚙️ 系统';
         }
 
         function getCurrentWorldbook() { return worldbooks.find(w => w.uid === currentWorldbookUid) || worldbooks[0]; }
@@ -3241,14 +3276,52 @@ ${extraContext.trim()}`;
             arr.forEach(e => { obj[e.uid] = e; });
             wb.entries = obj;
         }
+        // 🛠️ 创建新条目：完全对齐 SillyTavern 官方标准字段
+        function createNewEntry(uid) {
+            return {
+                uid: uid,
+                comment: '新条目',
+                content: '',
+                keys: [],
+                secondary_keys: [],
+                constant: false,
+                vectorized: false, // 向量化
+
+                // 插入与位置策略
+                order: 100,
+                position: 1, // ST 官方枚举: 0角色前 1角色后 2示例前 3示例后 4AN顶 5AN底 6@D 7输出口
+                depth: 4,
+                role: 0, // 0: System, 1: User, 2: Assistant
+                outlet_name: '', // 输出口名称
+
+                // 过滤器与概率
+                selectiveLogic: 0, // 0: AND ANY, 1: AND ALL, 2: NOT ANY, 3: NOT ALL
+                probability: 100, // 触发概率 %
+
+                // 组与匹配设置
+                group: '',
+                group_override: false,
+                use_group_scoring: false,
+                case_sensitive: false,
+                match_whole_words: false,
+
+                // 定时效果
+                sticky: 0,
+                cooldown: 0,
+                delay: 0,
+
+                // 递归控制
+                excludeRecursion: false, // 阻止进一步递归
+                prevent_recursion: false, // 不可被递归
+                delay_until_recursion: false,
+                disable: false
+            };
+        }
         function handleNewEntry() {
             const wb = getCurrentWorldbook();
             if (!wb) return;
             const newUid = Date.now();
-            wb.entries[newUid] = {
-                uid: newUid, keys: ['新条目'], content: '', constant: false, disable: false,
-                order: getEntriesArray().length, selectiveLogic: 0, excludeRecursion: false, probability: 100, depth: 4, position: 1, role: 0
-            };
+            wb.entries[newUid] = createNewEntry(newUid);
             currentEntryUid = newUid;
             saveToLocal();
             renderAll();
@@ -3330,16 +3403,25 @@ ${extraContext.trim()}`;
             saveToLocal();
             renderAll(); // 刷新左侧列表 + 世界书计数 + 编辑器（含空白提示状态）
         }
-        function updateEntryField(field, value) {
+        // 💾 万能字段更新器（处理字符串、数字、布尔值、数组），兼容旧 2 参数调用
+        function updateEntryField(field, value, type = 'string') {
             const entry = getCurrentEntry();
             if (!entry) return;
-            entry[field] = value;
+            if (type === 'number') {
+                entry[field] = parseInt(value) || 0;
+            } else if (type === 'boolean') {
+                entry[field] = Boolean(value);
+            } else if (type === 'array') {
+                entry[field] = value.split(',').map(s => s.trim()).filter(s => s);
+            } else {
+                entry[field] = value;
+            }
             if (field === 'keys') {
                 const keysInput = document.getElementById('entry-keys-input');
-                if (keysInput) keysInput.value = (value || []).join(', ');
+                if (keysInput) keysInput.value = (entry.keys || []).join(', ');
             }
             saveToLocal();
-            // 🚀 核心修复：只更新左侧列表，禁止重绘整个右侧 Editor，从而保住输入框焦点（防输入法卡顿断触）
+            // 只刷新左侧列表，禁止重绘整个右侧 Editor，保住输入框焦点（防输入法卡顿断触）
             renderEntries();
         }
 
@@ -3858,6 +3940,15 @@ ${extraContext.trim()}`;
                 container.innerHTML = `<div class="empty-state"><div class="icon">📝</div><p>选择一个条目开始编辑</p><button class="btn btn-primary" onclick="handleNewEntry()">➕ 新建条目</button></div>`;
                 return;
             }
+            const tagHTML = `
+                    <div class="field">
+                        <label>🏷️ 标签（支持自定义图标与名称）</label>
+                        <select id="entry-tag-select" class="select-styled" onchange="handleEntryTagSelect(this)">
+                            ${renderTagOptions(entry)}
+                        </select>
+                        <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">${renderEntryCustomTagChips(entry)}</div>
+                    </div>
+                `;
             container.innerHTML = `
                 <div class="editor-header">
                     <input class="title-input" id="entry-name-input" value="${entry.comment || entry.name || (entry.keys && entry.keys[0]) || ''}" placeholder="📌 条目名称 (UI 显示名，如：亚瑟王·设定卡)" oninput="saveCurrentEntryField('comment', this.value)" />
@@ -3869,41 +3960,139 @@ ${extraContext.trim()}`;
                         <button class="btn btn-sm" onclick="showModal('🔍 审查')">🔍 审查</button>
                     </div>
                 </div>
-                <div class="editor-meta">
-                    <div class="field"><label>🔑 触发关键词 (逗号分隔)</label><input id="entry-keys-input" value="${(entry.keys || []).join(', ')}" placeholder="例如：亚瑟, Arthur, 石中剑" oninput="saveCurrentEntryField('keys', this.value)" /></div>
-                    <div class="field">
-                        <label>🏷️ 标签（支持自定义图标与名称）</label>
-                        <select id="entry-tag-select" class="select-styled" onchange="handleEntryTagSelect(this)">
-                            ${renderTagOptions(entry)}
-                        </select>
-                        <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">${renderEntryCustomTagChips(entry)}</div>
+
+                ${tagHTML}
+
+                <div class="editor-meta" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+                    <!-- 🔑 基础触发设定 -->
+                    <div style="background: var(--bg-surface); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <div style="font-weight: bold; margin-bottom: 8px; color: var(--accent);">🔑 基础触发设定</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div>
+                                <label>主关键词 (逗号分隔，支持 /正则/)</label>
+                                <input id="entry-keys-input" class="input-styled" value="${(entry.keys || []).join(', ')}" oninput="saveCurrentEntryField('keys', this.value)">
+                            </div>
+                            <div style="display:flex; align-items:flex-end; gap: 15px; padding-bottom: 5px;">
+                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                                    <input type="checkbox" ${entry.constant ? 'checked' : ''} onchange="updateEntryField('constant', this.checked, 'boolean')">
+                                    <span>🔵 常驻 (无视关键词)</span>
+                                </label>
+                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                                    <input type="checkbox" ${entry.vectorized ? 'checked' : ''} onchange="updateEntryField('vectorized', this.checked, 'boolean')">
+                                    <span>🔗 向量化匹配</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
-                    <div class="field"><label>触发逻辑</label>
-                        <select onchange="updateEntryField('selectiveLogic', parseInt(this.value))">
-                            <option value="0" ${entry.selectiveLogic === 0 ? 'selected' : ''}>AND_ANY</option>
-                            <option value="1" ${entry.selectiveLogic === 1 ? 'selected' : ''}>NOT_ALL</option>
-                            <option value="2" ${entry.selectiveLogic === 2 ? 'selected' : ''}>NOT_ANY</option>
-                            <option value="3" ${entry.selectiveLogic === 3 ? 'selected' : ''}>AND_ALL</option>
-                        </select>
+
+                    <!-- 📍 上下文与位置策略 -->
+                    <div style="background: var(--bg-surface); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <div style="font-weight: bold; margin-bottom: 8px; color: var(--accent);">📍 上下文与位置策略</div>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                            <div>
+                                <label>插入位置 (Position)</label>
+                                <select class="select-styled" onchange="updateEntryField('position', this.value, 'number'); renderEditor();">
+                                    <option value="0" ${entry.position == 0 ? 'selected' : ''}>角色定义之前</option>
+                                    <option value="1" ${entry.position == 1 ? 'selected' : ''}>角色定义之后</option>
+                                    <option value="2" ${entry.position == 2 ? 'selected' : ''}>示例消息之前</option>
+                                    <option value="3" ${entry.position == 3 ? 'selected' : ''}>示例消息之后</option>
+                                    <option value="4" ${entry.position == 4 ? 'selected' : ''}>作者注记顶部</option>
+                                    <option value="5" ${entry.position == 5 ? 'selected' : ''}>作者注记底部</option>
+                                    <option value="6" ${entry.position == 6 ? 'selected' : ''}>@D 深度</option>
+                                    <option value="7" ${entry.position == 7 ? 'selected' : ''}>输出口 (Outlet)</option>
+                                </select>
+                            </div>
+                            ${entry.position == 6 ? `
+                            <div>
+                                <label>插入深度 (Depth)</label>
+                                <input type="number" class="input-styled" value="${entry.depth || 4}" onchange="updateEntryField('depth', this.value, 'number')">
+                            </div>
+                            <div>
+                                <label>角色分配 (Role)</label>
+                                <select class="select-styled" onchange="updateEntryField('role', this.value, 'number')">
+                                    <option value="0" ${entry.role == 0 ? 'selected' : ''}>⚙️ 系统 (System)</option>
+                                    <option value="1" ${entry.role == 1 ? 'selected' : ''}>👤 用户 (User)</option>
+                                    <option value="2" ${entry.role == 2 ? 'selected' : ''}>🤖 助手 (Assistant)</option>
+                                </select>
+                            </div>
+                            ` : ''}
+                            ${entry.position == 7 ? `
+                            <div style="grid-column: span 2;">
+                                <label>输出口名称 (用于 {{outlet::名称}} 宏)</label>
+                                <input type="text" class="input-styled" value="${escHtml(entry.outlet_name || '')}" placeholder="输入纯英文/拼音标识" onchange="updateEntryField('outlet_name', this.value, 'string')">
+                            </div>
+                            ` : ''}
+                            <div>
+                                <label>权重顺序 (Order)</label>
+                                <input type="number" class="input-styled" value="${entry.order || 100}" onchange="updateEntryField('order', this.value, 'number')">
+                            </div>
+                        </div>
                     </div>
-                    <div class="field"><label>位置</label>
-                        <select onchange="updateEntryField('position', parseInt(this.value))">
-                            <option value="0" ${entry.position === 0 ? 'selected' : ''}>角色定义之前</option><option value="1" ${entry.position === 1 ? 'selected' : ''}>角色定义之后</option>
-                            <option value="2" ${entry.position === 2 ? 'selected' : ''}>作者注记顶部</option><option value="3" ${entry.position === 3 ? 'selected' : ''}>作者注记底部</option>
-                            <option value="4" ${entry.position === 4 ? 'selected' : ''}>@D</option><option value="8" ${entry.position === 8 ? 'selected' : ''}>@D ⚙️ 系统</option><option value="9" ${entry.position === 9 ? 'selected' : ''}>@D 👤 用户</option><option value="10" ${entry.position === 10 ? 'selected' : ''}>@D 🤖 助手</option>
-                            <option value="5" ${entry.position === 5 ? 'selected' : ''}>示例消息之前</option><option value="6" ${entry.position === 6 ? 'selected' : ''}>示例消息之后</option><option value="7" ${entry.position === 7 ? 'selected' : ''}>输出口</option>
-                        </select>
-                    </div>
-                    <div class="field"><label>深度</label><input type="number" value="${entry.depth}" onchange="updateEntryField('depth', parseInt(this.value)||0)" /></div>
-                    <div class="field"><label>顺序</label><input type="number" value="${entry.order}" onchange="updateEntryField('order', parseInt(this.value)||0)" /></div>
-                    <div class="field"><label>概率 %</label><input type="number" value="${entry.probability}" onchange="updateEntryField('probability', parseInt(this.value)||0)" /></div>
-                    <div class="field" style="flex-direction:row;gap:8px;align-items:center;">
-                        <label style="text-transform:none;">常驻</label><input type="checkbox" ${entry.constant ? 'checked' : ''} onchange="updateEntryField('constant', this.checked)" />
-                        <label style="text-transform:none;">禁用</label><input type="checkbox" ${entry.disable ? 'checked' : ''} onchange="updateEntryField('disable', this.checked)" />
-                        <label style="text-transform:none;">防递归</label><input type="checkbox" ${entry.excludeRecursion ? 'checked' : ''} onchange="updateEntryField('excludeRecursion', this.checked)" />
-                    </div>
+
+                    <!-- ⚙️ 高级设定 -->
+                    <details style="background: var(--bg-surface); border-radius: 8px; border: 1px solid #444; overflow:hidden;">
+                        <summary style="padding: 10px 12px; font-weight: bold; color: #bbb; cursor: pointer; user-select: none; background: #222;">
+                            ⚙️ 展开高级设定 (过滤器、定时效果、递归...)
+                        </summary>
+                        <div style="padding: 12px; display: flex; flex-direction: column; gap: 12px;">
+                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+                                <div>
+                                    <label>可选过滤器 (Secondary Keys)</label>
+                                    <input type="text" class="input-styled" value="${(entry.secondary_keys || []).join(', ')}" onchange="updateEntryField('secondary_keys', this.value, 'array')">
+                                </div>
+                                <div>
+                                    <label>过滤逻辑 (Logic)</label>
+                                    <select class="select-styled" onchange="updateEntryField('selectiveLogic', this.value, 'number')">
+                                        <option value="0" ${entry.selectiveLogic == 0 ? 'selected' : ''}>AND ANY (满足任一)</option>
+                                        <option value="1" ${entry.selectiveLogic == 1 ? 'selected' : ''}>AND ALL (满足全部)</option>
+                                        <option value="2" ${entry.selectiveLogic == 2 ? 'selected' : ''}>NOT ANY (排除任一)</option>
+                                        <option value="3" ${entry.selectiveLogic == 3 ? 'selected' : ''}>NOT ALL (排除全部)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                                <div>
+                                    <label>包含组 (Group)</label>
+                                    <input type="text" class="input-styled" value="${escHtml(entry.group || '')}" onchange="updateEntryField('group', this.value, 'string')">
+                                </div>
+                                <div>
+                                    <label>触发概率 (%)</label>
+                                    <input type="number" class="input-styled" value="${entry.probability !== undefined ? entry.probability : 100}" min="0" max="100" onchange="updateEntryField('probability', this.value, 'number')">
+                                </div>
+                                <div>
+                                    <label>粘性 (Sticky)</label>
+                                    <input type="number" class="input-styled" value="${entry.sticky || 0}" onchange="updateEntryField('sticky', this.value, 'number')" title="触发后保持活跃的轮数">
+                                </div>
+                                <div>
+                                    <label>冷却 (Cooldown)</label>
+                                    <input type="number" class="input-styled" value="${entry.cooldown || 0}" onchange="updateEntryField('cooldown', this.value, 'number')" title="触发后无法再触发的轮数">
+                                </div>
+                            </div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px; font-size:12px; color:#aaa;">
+                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                                    <input type="checkbox" ${entry.case_sensitive ? 'checked' : ''} onchange="updateEntryField('case_sensitive', this.checked, 'boolean')"> 区分大小写
+                                </label>
+                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                                    <input type="checkbox" ${entry.match_whole_words ? 'checked' : ''} onchange="updateEntryField('match_whole_words', this.checked, 'boolean')"> 全词匹配
+                                </label>
+                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                                    <input type="checkbox" ${entry.prevent_recursion ? 'checked' : ''} onchange="updateEntryField('prevent_recursion', this.checked, 'boolean')"> 不可被递归
+                                </label>
+                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                                    <input type="checkbox" ${entry.excludeRecursion ? 'checked' : ''} onchange="updateEntryField('excludeRecursion', this.checked, 'boolean')"> 阻止进一步递归
+                                </label>
+                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                                    <input type="checkbox" ${entry.delay_until_recursion ? 'checked' : ''} onchange="updateEntryField('delay_until_recursion', this.checked, 'boolean')"> 延迟至递归
+                                </label>
+                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                                    <input type="checkbox" ${entry.disable ? 'checked' : ''} onchange="updateEntryField('disable', this.checked, 'boolean')"> 禁用
+                                </label>
+                            </div>
+                        </div>
+                    </details>
                 </div>
-				<div class="editor-content">
+
+                <div class="editor-content">
                     <div class="label-row">
                         <span style="font-weight:500;font-size:14px;">📄 内容</span>
                         <div class="ai-actions">
@@ -4662,6 +4851,20 @@ ${extraContext.trim()}`;
                                         target.comment = entryName;
                                         if (!Array.isArray(op.keys) || !op.keys.length) target.keys = [entryName];
                                     }
+                                    // 🆕 ST 扩展字段：概率/逻辑/递归/@D角色/输出口/定时效果/匹配设置
+                                    if (op.probability !== undefined) target.probability = parseInt(op.probability) || target.probability;
+                                    if (op.selectiveLogic !== undefined) target.selectiveLogic = parseInt(op.selectiveLogic) || target.selectiveLogic;
+                                    if (op.excludeRecursion !== undefined) target.excludeRecursion = Boolean(op.excludeRecursion);
+                                    if (op.role !== undefined) target.role = parseInt(op.role) || 0;
+                                    if (op.outlet_name !== undefined) target.outlet_name = String(op.outlet_name || '');
+                                    if (op.sticky !== undefined) target.sticky = parseInt(op.sticky) || 0;
+                                    if (op.cooldown !== undefined) target.cooldown = parseInt(op.cooldown) || 0;
+                                    if (op.delay !== undefined) target.delay = parseInt(op.delay) || 0;
+                                    if (Array.isArray(op.secondary_keys)) target.secondary_keys = op.secondary_keys;
+                                    if (op.case_sensitive !== undefined) target.case_sensitive = Boolean(op.case_sensitive);
+                                    if (op.match_whole_words !== undefined) target.match_whole_words = Boolean(op.match_whole_words);
+                                    if (op.prevent_recursion !== undefined) target.prevent_recursion = Boolean(op.prevent_recursion);
+                                    if (op.delay_until_recursion !== undefined) target.delay_until_recursion = Boolean(op.delay_until_recursion);
                                 } else {
                                     // 新建条目：没有合法名字时，才用触发词 keys[0] 兜底（并排除保留字段名）
                                     let newName = entryName;
@@ -4671,18 +4874,31 @@ ${extraContext.trim()}`;
                                     }
                                     const safeName = newName || '未命名条目';
                                     const newUid = Date.now() + entriesArr.length;
-                                    wb.entries[newUid] = {
+                                    const base = createNewEntry(newUid);
+                                    wb.entries[newUid] = Object.assign(base, {
                                         uid: newUid,
                                         keys: Array.isArray(op.keys) && op.keys.length ? op.keys : [safeName],
                                         content: op.content || '',
                                         comment: safeName,
-                                        constant: false, disable: false,
+                                        constant: op.constant !== undefined ? Boolean(op.constant) : false,
+                                        disable: op.disable !== undefined ? Boolean(op.disable) : false,
                                         order: parseInt(op.order) || 100,
-                                        selectiveLogic: 0, excludeRecursion: false, probability: 100,
+                                        selectiveLogic: op.selectiveLogic !== undefined ? parseInt(op.selectiveLogic) : 0,
+                                        excludeRecursion: op.excludeRecursion !== undefined ? Boolean(op.excludeRecursion) : false,
+                                        probability: op.probability !== undefined ? parseInt(op.probability) : 100,
                                         depth: parseInt(op.depth) || 4,
                                         position: pos !== null ? pos : 1,
-                                        role: 0
-                                    };
+                                        role: op.role !== undefined ? parseInt(op.role) : 0,
+                                        outlet_name: op.outlet_name !== undefined ? String(op.outlet_name) : '',
+                                        sticky: op.sticky !== undefined ? parseInt(op.sticky) : 0,
+                                        cooldown: op.cooldown !== undefined ? parseInt(op.cooldown) : 0,
+                                        delay: op.delay !== undefined ? parseInt(op.delay) : 0,
+                                        secondary_keys: Array.isArray(op.secondary_keys) ? op.secondary_keys : [],
+                                        case_sensitive: op.case_sensitive !== undefined ? Boolean(op.case_sensitive) : false,
+                                        match_whole_words: op.match_whole_words !== undefined ? Boolean(op.match_whole_words) : false,
+                                        prevent_recursion: op.prevent_recursion !== undefined ? Boolean(op.prevent_recursion) : false,
+                                        delay_until_recursion: op.delay_until_recursion !== undefined ? Boolean(op.delay_until_recursion) : false
+                                    });
                                 }
                                 modifiedWorldbook = true;
                             } else if (op.action === 'delete') {
