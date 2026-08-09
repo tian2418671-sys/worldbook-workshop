@@ -657,10 +657,19 @@
             color: var(--text-primary);
             font-size: 13px;
             line-height: 1.6;
-            resize: none;
-            /* 禁止拖拽缩放，防止内容框下拉覆盖底部按钮 */
+            resize: vertical; /* 📝 解锁垂直拖拽缩放 */
             outline: none;
             font-family: inherit;
+        }
+
+        /* 📝 解锁内容文本框的拖拽缩放能力 */
+        #contentTextarea {
+            resize: vertical !important; /* 核心：允许用户垂直拖拽改变高度 */
+            min-height: 200px;           /* 合理的最小高度，防止缩得太小 */
+            max-height: 80vh;            /* 最大高度为屏幕高度 80%，防止撑爆页面 */
+            overflow-y: auto;            /* 内容超出时正常显示滚动条 */
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .editor-content textarea:focus {
