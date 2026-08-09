@@ -1792,6 +1792,56 @@
         let promptPresets = JSON.parse(JSON.stringify(DEFAULT_PROMPT_PRESETS));
         let currentPromptId = 'std';
 
+        // ============================================================
+        //  📋 多预设总条目库（新权威数据源：数组 + activePresetId）
+        //  兼容策略：presets 与 promptPresets/currentPromptId 双向同步，
+        //  现有依赖 promptPresets 的代码（下拉/块编辑器/AI编译）零改动。
+        // ============================================================
+        let presets = [];            // [{ id, name, blocks:[...] }, ...]
+        let activePresetId = null;   // 当前选中的总条目 id
+
+        // 🧠 核心获取函数：获取当前选中的“预设总条目”
+        function getActivePreset() {
+            let target = presets.find(p => p.id === activePresetId);
+            if (!target && presets.length > 0) {
+                target = presets[0];
+                activePresetId = target.id;
+            }
+            return target || { id: 'preset_default', name: '默认预设总条目', blocks: [] };
+        }
+
+        // 从默认预设构建 presets（初始化/重置时调用）
+        function rebuildPresetsFromDefaults() {
+            presets = Object.keys(DEFAULT_PROMPT_PRESETS).map(id => ({
+                id: id,
+                name: DEFAULT_PROMPT_PRESETS[id].name,
+                blocks: JSON.parse(JSON.stringify(DEFAULT_PROMPT_PRESETS[id].blocks || []))
+            }));
+            activePresetId = presets.length ? presets[0].id : null;
+        }
+
+        // presets → promptPresets/currentPromptId（新数据源推送到旧兼容层）
+        function syncPresetsToLegacy() {
+            const merged = {};
+            presets.forEach(p => { merged[p.id] = { name: p.name, blocks: p.blocks || [] }; });
+            promptPresets = merged;
+            currentPromptId = merged[activePresetId] ? activePresetId : (Object.keys(merged)[0] || 'std');
+        }
+
+        // promptPresets/currentPromptId → presets（旧兼容层恢复后回填）
+        function syncLegacyToPresets() {
+            presets = Object.keys(promptPresets).map(id => ({
+                id: id,
+                name: (promptPresets[id] || {}).name || id,
+                blocks: (promptPresets[id] || {}).blocks || []
+            }));
+            activePresetId = currentPromptId && promptPresets[currentPromptId] ? currentPromptId : (presets.length ? presets[0].id : null);
+        }
+
+        // 初始化：立即从默认预设构建总条目库并同步
+        rebuildPresetsFromDefaults();
+        syncPresetsToLegacy();
+
         let apiLogs = [];
         let currentWorldbookUid = 1;
         let currentEntryUid = 101;
@@ -1833,8 +1883,10 @@
                 chatMessages: chatMessages,
                 chatConversations: chatConversations,
                 currentChatId: currentChatId,
-                promptPresets: promptPresets, // 保存提示词预设
+                promptPresets: promptPresets, // 保存提示词预设（旧兼容）
                 currentPromptId: currentPromptId,
+                presets: presets,           // 📋 多预设总条目库（新权威数据源）
+                activePresetId: activePresetId,
                 chatRules: chatRules,
                 chatUsePreset: typeof chatUsePreset !== 'undefined' ? chatUsePreset : false,
                 entrySortMode: typeof entrySortMode !== 'undefined' ? entrySortMode : 'manual',
@@ -1892,6 +1944,10 @@
                 if (undoSnapshot.currentWorldbookUid) currentWorldbookUid = undoSnapshot.currentWorldbookUid;
                 if (undoSnapshot.promptPresets) promptPresets = undoSnapshot.promptPresets;
                 if (undoSnapshot.currentPromptId) currentPromptId = undoSnapshot.currentPromptId;
+                // 撤回后回填总条目库（presets 为新权威数据源）
+                if (undoSnapshot.presets) { presets = undoSnapshot.presets; }
+                if (undoSnapshot.activePresetId) activePresetId = undoSnapshot.activePresetId;
+                syncLegacyToPresets();
                 if (undoSnapshot.apiConfigs) apiConfigs = undoSnapshot.apiConfigs;
                 if (undoSnapshot.currentApiId) currentApiId = undoSnapshot.currentApiId;
                 if (undoSnapshot.apiLogs) apiLogs = undoSnapshot.apiLogs;
@@ -1960,6 +2016,8 @@
                     apiConfigs: JSON.parse(JSON.stringify(apiConfigs)),
                     currentApiId: currentApiId,
                     currentPromptId: currentPromptId,
+                    presets: JSON.parse(JSON.stringify(presets)),
+                    activePresetId: activePresetId,
                     chatMessages: JSON.parse(JSON.stringify(chatMessages)),
                     chatConversations: JSON.parse(JSON.stringify(chatConversations)),
                     currentChatId: currentChatId,
@@ -1982,6 +2040,9 @@
             if (snap.apiConfigs) apiConfigs = snap.apiConfigs;
             if (snap.currentApiId) currentApiId = snap.currentApiId;
             if (snap.currentPromptId) currentPromptId = snap.currentPromptId;
+            if (snap.presets) presets = snap.presets;
+            if (snap.activePresetId) activePresetId = snap.activePresetId;
+            syncLegacyToPresets();
             if (Array.isArray(snap.chatConversations) && snap.chatConversations.length) {
                 chatConversations = snap.chatConversations;
                 currentChatId = snap.currentChatId || chatConversations[0].id;
@@ -2049,11 +2110,11 @@
                 apiSelect.innerHTML = Object.keys(apiConfigs).map(id => `<option value="${id}">${apiConfigs[id].name}</option>`).join('');
                 apiSelect.value = currentApiId;
             }
-            // 渲染提示词下拉
+            // 渲染提示词下拉（新权威数据源 presets）
             const promptSelect = document.getElementById('promptSelect');
             if (promptSelect) {
-                promptSelect.innerHTML = Object.keys(promptPresets).map(id => `<option value="${id}">${promptPresets[id].name}</option>`).join('');
-                promptSelect.value = currentPromptId;
+                promptSelect.innerHTML = presets.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                promptSelect.value = activePresetId;
             }
         }
 
@@ -2141,10 +2202,21 @@
                             promptPresets[id] = data.promptPresets[id];
                         });
                     }
+                    // 📋 多预设总条目库恢复（新权威数据源优先，兼容旧版单一预设数据）
+                    if (Array.isArray(data.presets) && data.presets.length > 0) {
+                        presets = data.presets;
+                        activePresetId = data.activePresetId || presets[0].id;
+                        if (!presets.some(p => p.id === activePresetId)) activePresetId = presets[0].id;
+                    } else {
+                        // 兼容旧版：把合并后的 promptPresets 打包为总条目库
+                        syncLegacyToPresets();
+                    }
                     // 兼容旧数据：将旧格式预设迁移为 blocks 结构
                     if (migratePromptPresets()) saveToLocal();
                     if (data.currentApiId) currentApiId = data.currentApiId;
                     if (data.currentPromptId) currentPromptId = data.currentPromptId;
+                    // 确保两套数据源同步（presets 为新权威数据源）
+                    syncPresetsToLegacy();
                     if (data.apiLogs) apiLogs = data.apiLogs || [];
                     // 恢复上次激活的世界书（仅当 uid 仍存在时，避免指向空世界书）
                     if (data.currentWorldbookUid && worldbooks.some(w => w.uid === data.currentWorldbookUid)) currentWorldbookUid = data.currentWorldbookUid;
@@ -3206,8 +3278,9 @@ ${extraContext.trim()}`;
         }
         function switchApi(id) { if (apiConfigs[id]) { currentApiId = id; saveToLocal(); showToast('已切换到 ' + apiConfigs[id].name); } }
         function switchPrompt(id) {
-            if (!promptPresets[id]) return;
+            if (!presets.some(p => p.id === id)) return;
             const hadMemory = chatMessages.length > 0;
+            activePresetId = id;
             currentPromptId = id;
             // 切换预设时清空当前对话记忆，让 AI 重新带入新角色（避免预设覆盖冲突"精神分裂"）
             if (chatMessages.length) {
@@ -3216,7 +3289,8 @@ ${extraContext.trim()}`;
             }
             saveToLocal();
             renderDropdowns();
-            showToast('提示词预设: ' + promptPresets[id].name + (hadMemory ? '，助手记忆已重置' : ''));
+            const pName = (presets.find(p => p.id === id) || {}).name || id;
+            showToast('提示词预设: ' + pName + (hadMemory ? '，助手记忆已重置' : ''));
         }
 
         // ============================================================
@@ -4671,84 +4745,10 @@ ${extraContext.trim()}`;
          * 支持无参调用自动弹出文件选择框（兼容 HTML onclick），或直接传入 file input 元素
          */
         async function handleImportPromptPreset(fileInput) {
-            // 无参调用：动态创建并触发文件选择框（对应 HTML 中 onclick="handleImportPromptPreset()"）
-            if (!fileInput) {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.json';
-                input.style.display = 'none';
-                document.body.appendChild(input);
-                input.onchange = () => { handleImportPromptPreset(input); document.body.removeChild(input); };
-                input.click();
-                return;
-            }
-
+            // 兼容旧入口：无参弹文件框 / 传 file input，全部委托给新的"导入新建总条目"逻辑
+            if (!fileInput) { handlePresetImport(); return; }
             const file = fileInput.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                try {
-                    const result = importSillyTavernPreset(e.target.result);
-
-                    if (!result.success) {
-                        showToast('❌ 预设导入失败: ' + result.error);
-                        return;
-                    }
-
-                    const newBlocks = result.blocks;
-
-                    // 挂载到当前预设管理集中（不存在则新建，以文件名命名）
-                    if (!promptPresets[currentPromptId]) {
-                        const presetId = 'prompt_' + Date.now();
-                        promptPresets[presetId] = { name: file.name.replace(/\.[^/.]+$/, ""), blocks: [] };
-                        currentPromptId = presetId;
-                    }
-                    const preset = promptPresets[currentPromptId];
-                    if (!Array.isArray(preset.blocks)) preset.blocks = [];
-
-                    // 🔍 判断当前是否已经装载了旧预设
-                    if (preset.blocks.length > 0) {
-                        // 弹出选择框，让用户自由决定追加还是替换
-                        showModal('📥 导入酒馆预设', {
-                            bodyHTML: `
-                                <div style="font-size:13px; color:#ddd; line-height:1.6; padding:8px 0;">
-                                    检测到当前预设「${escHtml(preset.name)}」中已装载 <b style="color:#8ecbff;">${preset.blocks.length}</b> 条规则块。<br>
-                                    本次导入包含 <b style="color:#6ee7b7;">${newBlocks.length}</b> 条新规则块，请选择处理方式：
-                                </div>
-                            `,
-                            confirmText: '➕ 追加合并 (保留现有并新增)',
-                            cancelText: '🔄 完全覆盖 (替换全部旧预设)',
-                            onConfirm: () => {
-                                appendPresetBlocks(newBlocks); // 执行追加合并
-                                closeModal();
-                            },
-                            onCancel: () => {
-                                // 执行完全覆盖
-                                preset.blocks = newBlocks;
-                                if (typeof initBlockEditor === 'function') initBlockEditor(); // 同步工作副本
-                                saveToLocal();
-                                renderBlockEditor();
-                                renderDropdowns();
-                                closeModal();
-                                showToast(`已清空旧预设，并加载 ${newBlocks.length} 条新规则！`);
-                            }
-                        });
-                    } else {
-                        // 当前为空，直接加载
-                        preset.blocks = newBlocks;
-                        if (typeof initBlockEditor === 'function') initBlockEditor(); // 同步工作副本
-                        saveToLocal();
-                        renderBlockEditor();
-                        renderDropdowns();
-                        showToast(`✅ 成功导入酒馆预设！共加载 ${newBlocks.length} 个规则模块。`);
-                    }
-                } catch (err) {
-                    console.error('预设文件解析失败:', err);
-                    showToast('❌ 文件读取解析失败，非标准 JSON 数据');
-                }
-            };
-            reader.readAsText(file);
+            if (file) handlePresetImport(file);
         }
 
         // 🧩 辅助函数：安全追加预设规则块（自动去重与 ID 防重）
@@ -4801,6 +4801,310 @@ ${extraContext.trim()}`;
             } else {
                 showToast(`成功追加 ${addedCount} 条新预设规则！`);
             }
+        }
+
+        // ============================================================
+        //  📦 多预设总条目系统（总条目库管理 + 导入新建 + 渲染 + AI 编译）
+        // ============================================================
+
+        // 📥 万能酒馆预设导入：每次导入直接新建一个"预设总条目"（支持无参弹文件框）
+        function handlePresetImport(file) {
+            if (!file) {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.style.display = 'none';
+                document.body.appendChild(input);
+                input.onchange = () => { handlePresetImport(input.files[0]); document.body.removeChild(input); };
+                input.click();
+                return;
+            }
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                try {
+                    const json = JSON.parse(e.target.result);
+
+                    // 1. 按文件原始物理顺序解析规则块
+                    let extractedBlocks = [];
+                    if (Array.isArray(json.prompts)) extractedBlocks = json.prompts;
+                    else if (Array.isArray(json.blocks)) extractedBlocks = json.blocks;
+                    else if (Array.isArray(json)) extractedBlocks = json;
+                    else if (json.story_string !== undefined) {
+                        if (json.system_prompt) extractedBlocks.push({ identifier: 'System Prompt', content: json.system_prompt, role: 'system' });
+                        if (json.story_string) extractedBlocks.push({ identifier: 'Story String', content: json.story_string, role: 'system' });
+                        if (json.post_history_instructions) extractedBlocks.push({ identifier: 'Post History (PHI)', content: json.post_history_instructions, role: 'system' });
+                    }
+
+                    if (extractedBlocks.length === 0) {
+                        showToast('⚠️ 未能从文件中识别出有效的预设规则块！');
+                        return;
+                    }
+
+                    // 2. 格式化内部规则块（严格锁定原本顺序，name 与 identifier 双写兼容新旧渲染）
+                    const formattedBlocks = extractedBlocks.map((b, index) => ({
+                        id: 'block_' + Date.now() + '_' + String(index).padStart(4, '0'),
+                        identifier: b.identifier || b.name || `规则块 ${index + 1}`,
+                        name: b.identifier || b.name || `规则块 ${index + 1}`,
+                        content: b.content || b.text || '',
+                        role: b.role || 'system',
+                        enabled: b.enabled !== undefined ? b.enabled : true
+                    }));
+
+                    // 3. 提取总条目名称（优先读取 JSON name，否则使用文件名）
+                    let masterName = file.name.replace(/\.[^/.]+$/, '').trim();
+                    if (json.name) masterName = String(json.name).trim();
+
+                    // 防重名命名处理
+                    let finalName = masterName || '未命名预设';
+                    let count = 1;
+                    while (presets.some(p => p.name === finalName)) {
+                        finalName = `${masterName || '未命名预设'} (${count++})`;
+                    }
+
+                    // 4. 🌟 生成全新的"预设总条目"
+                    const newMasterPreset = {
+                        id: 'preset_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        name: finalName,
+                        blocks: formattedBlocks // 完整的子规则链
+                    };
+
+                    // 5. 存入总条目库，并自动切换选中当前新建的总条目
+                    presets.push(newMasterPreset);
+                    activePresetId = newMasterPreset.id;
+                    syncPresetsToLegacy(); // 同步旧兼容层
+
+                    saveToLocal();
+                    renderPresetManager(); // 刷新 UI
+                    renderDropdowns();
+                    showToast(`✅ 已创建预设总条目：【${finalName}】（包含 ${formattedBlocks.length} 条子规则）`);
+
+                } catch (err) {
+                    console.error('预设导入失败:', err);
+                    showToast('❌ 预设文件格式不正确或解析失败');
+                }
+            };
+
+            reader.readAsText(file);
+        }
+
+        // 🎨 渲染预设管理面板（顶层为总条目选择）
+        function renderPresetManager() {
+            const container = document.getElementById('preset-blocks-container');
+            if (!container) return;
+
+            const activePreset = getActivePreset();
+            const blocks = activePreset.blocks || [];
+
+            // 1. 渲染预设总条目选择栏
+            const optionsHTML = presets.map(p =>
+                `<option value="${p.id}" ${p.id === activePresetId ? 'selected' : ''}>📦 ${escHtml(p.name)} (${(p.blocks || []).length} 条子规则)</option>`
+            ).join('');
+
+            const topBarHTML = `
+                <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); margin-bottom: 14px;">
+                    <div style="font-size: 11px; color: var(--accent); font-weight: bold; margin-bottom: 6px;">📂 当前预设总条目方案：</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                        <select id="preset-profile-select" style="flex: 1; min-width: 200px; background: #1a1a1a; color: #8ecbff; border: 1px solid #444; border-radius: 4px; padding: 7px 10px; font-size: 13px; font-weight: bold;" onchange="switchPresetProfile(this.value)">
+                            ${optionsHTML}
+                        </select>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <button onclick="createNewPresetProfile()" style="background: #2b5278; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">➕ 新建总条目</button>
+                            <button onclick="renameCurrentPresetProfile()" style="background: #3a3a3a; color: #ddd; border: none; padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">✏️ 改名</button>
+                            <button onclick="deleteCurrentPresetProfile()" style="background: #8b2626; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">🗑️ 删除总条目</button>
+                            <button onclick="exportPresetProfile()" style="background: #3a5a2b; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">📤 导出当前</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 2. 渲染当前总条目内部包含的子规则卡片
+            let blocksHTML = '';
+            if (blocks.length === 0) {
+                blocksHTML = `<div style="text-align: center; color: #888; padding: 30px 0; font-size: 13px;">当前总条目【${escHtml(activePreset.name)}】为空，请点击上方「📥 导入酒馆预设」或手动添加子规则。</div>`;
+            } else {
+                blocksHTML = blocks.map((b, idx) => `
+                    <div class="preset-block-card" style="background: #242424; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
+                            <span style="font-size: 12px; color: #aaa; font-weight: bold;">#${idx + 1} ${escHtml(b.identifier || b.name || '未命名规则')}</span>
+                            <span style="display:flex; gap:6px; align-items:center;">
+                                <label style="font-size: 12px; color: #8ecbff; cursor: pointer;">
+                                    <input type="checkbox" ${b.enabled ? 'checked' : ''} onchange="togglePresetBlockEnabled(${idx}, this.checked)"> 启用
+                                </label>
+                                <button onclick="movePresetBlock(${idx}, -1)" style="background:#333;color:#aaa;border:none;padding:2px 8px;border-radius:3px;font-size:12px;cursor:pointer;" title="上移">▲</button>
+                                <button onclick="movePresetBlock(${idx}, 1)" style="background:#333;color:#aaa;border:none;padding:2px 8px;border-radius:3px;font-size:12px;cursor:pointer;" title="下移">▼</button>
+                                <button onclick="removePresetBlock(${idx})" style="background:#8b2626;color:white;border:none;padding:2px 8px;border-radius:3px;font-size:12px;cursor:pointer;" title="删除该子规则">🗑️</button>
+                            </span>
+                        </div>
+                        <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
+                            <select style="flex:0 0 90px; background:#181818;color:#ddd;border:1px solid #383838;border-radius:4px;font-size:12px;padding:3px;" onchange="updatePresetBlockField(${idx}, 'role', this.value)">
+                                <option value="system" ${String(b.role || 'system') === 'system' ? 'selected' : ''}>system</option>
+                                <option value="user" ${String(b.role || '') === 'user' ? 'selected' : ''}>user</option>
+                            </select>
+                            <input value="${escAttr(b.identifier || b.name || '')}" placeholder="规则名称" style="flex:1; background:#181818;color:#ddd;border:1px solid #383838;border-radius:4px;font-size:12px;padding:3px 6px;" onchange="updatePresetBlockField(${idx}, 'name', this.value);updatePresetBlockField(${idx}, 'identifier', this.value)" />
+                        </div>
+                        <textarea style="width: 100%; height: 60px; background: #181818; color: #ddd; border: 1px solid #383838; border-radius: 4px; font-size: 12px; padding: 6px; box-sizing: border-box; resize: vertical;" onchange="updatePresetBlockField(${idx}, 'content', this.value)">${escHtml(b.content || '')}</textarea>
+                    </div>
+                `).join('');
+            }
+
+            container.innerHTML = topBarHTML + blocksHTML;
+        }
+
+        // 切换当前激活的预设总条目
+        function switchPresetProfile(presetId) {
+            if (presets.some(p => p.id === presetId)) {
+                activePresetId = presetId;
+                currentPromptId = presetId;
+                syncPresetsToLegacy();
+                saveToLocal();
+                renderDropdowns();
+                renderPresetManager();
+                const active = getActivePreset();
+                showToast(`已切换至总条目：【${active.name}】`);
+            }
+        }
+
+        // 新建空白预设总条目
+        function createNewPresetProfile() {
+            const name = prompt('请输入新预设总条目的名称：', '手动新建预设总条目');
+            if (!name || !name.trim()) return;
+
+            const newPreset = {
+                id: 'preset_' + Date.now(),
+                name: name.trim(),
+                blocks: []
+            };
+            presets.push(newPreset);
+            activePresetId = newPreset.id;
+            currentPromptId = newPreset.id;
+            syncPresetsToLegacy();
+            saveToLocal();
+            renderDropdowns();
+            renderPresetManager();
+            showToast(`已新建预设总条目：【${newPreset.name}】`);
+        }
+
+        // 重命名当前选中的总条目
+        function renameCurrentPresetProfile() {
+            const active = getActivePreset();
+            const newName = prompt('重命名当前预设总条目：', active.name);
+            if (!newName || !newName.trim() || newName === active.name) return;
+
+            active.name = newName.trim();
+            syncPresetsToLegacy();
+            saveToLocal();
+            renderDropdowns();
+            renderPresetManager();
+            showToast(`已更名为：【${active.name}】`);
+        }
+
+        // 删除当前总条目
+        function deleteCurrentPresetProfile() {
+            if (presets.length <= 1) {
+                showToast('⚠️ 至少需要保留一个预设总条目！');
+                return;
+            }
+            const active = getActivePreset();
+            if (confirm(`确定要彻底删除预设总条目【${active.name}】及其内部所有的规则块吗？`)) {
+                presets = presets.filter(p => p.id !== active.id);
+                activePresetId = presets[0].id;
+                currentPromptId = activePresetId;
+                syncPresetsToLegacy();
+                saveToLocal();
+                renderDropdowns();
+                renderPresetManager();
+                showToast(`已彻底删除总条目：【${active.name}】`);
+            }
+        }
+
+        // 按 id 删除总条目（供列表等调用）
+        function deletePresetProfileById(id) {
+            const target = presets.find(p => p.id === id);
+            if (!target) return;
+            if (!confirm(`确定删除预设总条目【${target.name}】吗？`)) return;
+            presets = presets.filter(p => p.id !== id);
+            if (activePresetId === id) {
+                activePresetId = presets.length ? presets[0].id : null;
+                currentPromptId = activePresetId;
+            }
+            syncPresetsToLegacy();
+            saveToLocal();
+            renderDropdowns();
+            renderPresetManager();
+        }
+
+        // 子规则：启用开关
+        function togglePresetBlockEnabled(idx, checked) {
+            const active = getActivePreset();
+            if (!active.blocks || !active.blocks[idx]) return;
+            active.blocks[idx].enabled = !!checked;
+            syncPresetsToLegacy();
+            saveToLocal();
+        }
+
+        // 子规则：更新字段
+        function updatePresetBlockField(idx, field, value) {
+            const active = getActivePreset();
+            if (!active.blocks || !active.blocks[idx]) return;
+            active.blocks[idx][field] = value;
+            syncPresetsToLegacy();
+            saveToLocal();
+        }
+
+        // 子规则：删除
+        function removePresetBlock(idx) {
+            const active = getActivePreset();
+            if (!active.blocks) return;
+            active.blocks.splice(idx, 1);
+            syncPresetsToLegacy();
+            saveToLocal();
+            renderPresetManager();
+        }
+
+        // 子规则：上移/下移
+        function movePresetBlock(idx, dir) {
+            const active = getActivePreset();
+            if (!active.blocks) return;
+            const to = idx + dir;
+            if (to < 0 || to >= active.blocks.length) return;
+            const tmp = active.blocks[idx];
+            active.blocks[idx] = active.blocks[to];
+            active.blocks[to] = tmp;
+            syncPresetsToLegacy();
+            saveToLocal();
+            renderPresetManager();
+        }
+
+        // 📤 导出当前激活总条目为 JSON（SillyTavern 兼容格式）
+        function exportPresetProfile() {
+            const active = getActivePreset();
+            const exportData = {
+                name: active.name,
+                prompts: (active.blocks || []).map(b => ({
+                    name: b.identifier || b.name || '规则块',
+                    content: b.content || '',
+                    role: b.role || 'system',
+                    enabled: b.enabled !== undefined ? b.enabled : true
+                }))
+            };
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = (active.name || '预设').replace(/[\\/:*?"<>|]/g, '_') + '.json';
+            a.click();
+            URL.revokeObjectURL(a.href);
+            showToast(`已导出总条目：【${active.name}】`);
+        }
+
+        // 编译当前激活总条目中已开启的规则（AI 上下文拼接）
+        function compilePresetMessages() {
+            const activeMaster = getActivePreset();
+            const enabledBlocks = (activeMaster.blocks || []).filter(b => b.enabled);
+            return enabledBlocks.map(b => ({
+                role: b.role || 'system',
+                content: b.content || ''
+            }));
         }
 
         // ============================================================
@@ -6042,28 +6346,12 @@ ${learned.sample}
             } else if (title.includes('提示词管理')) {
                 bodyHTML = `
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                        <label style="font-weight:500; font-size:13px; color:var(--text-secondary); white-space:nowrap;">当前预设:</label>
-                        <select class="select-styled" style="flex:1;" onchange="switchPrompt(this.value);showModal('提示词管理');">
-                            ${Object.keys(promptPresets).map(id => `<option value="${id}" ${id === currentPromptId ? 'selected' : ''}>${promptPresets[id].name}</option>`).join('')}
-                        </select>
+                        <button class="btn btn-sm" onclick="handlePresetImport()" title="每次导入都会新建一个独立的预设总条目" type="button">📥 导入酒馆预设 (新建总条目)</button>
                     </div>
-                    <div style="max-height: 150px; overflow-y: auto; margin-bottom: 10px;">
-                        ${Object.keys(promptPresets).map(id => `
-                            <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-elevated);padding:6px 10px;border-radius:6px;margin-bottom:4px;">
-                                <span><strong>${promptPresets[id].name}</strong></span>
-                                <span style="display:flex; gap:4px;">
-                                    <button class="btn btn-sm" onclick="exportPromptPreset('${id}')" title="导出为 JSON 文件">📤</button>
-                                    <button class="btn btn-sm btn-danger" onclick="if(confirm('确定删除此预设吗？')){takeSnapshot('删除预设');delete promptPresets['${id}'];saveToLocal();renderDropdowns();closeModal();showModal('提示词管理');}">🗑️ 删除</button>
-                                </span>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <hr style="border-color: var(--border-color); margin: 12px 0;">
-                    <div id="blockEditorContainer"></div>
+                    <div id="preset-blocks-container"></div>
                     <hr style="border-color: var(--border-color); margin: 12px 0;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <p style="font-weight: 500; margin: 0;">➕ 新增提示词预设</p>
-                        <button class="btn btn-sm" onclick="handleImportPromptPreset()" title="支持导入 SillyTavern (.json) 预设文件" type="button">📥 导入酒馆预设</button>
+                        <p style="font-weight: 500; margin: 0;">➕ 手动新增提示词预设</p>
                     </div>
                     <div class="row">
                         <input id="promptIdInput" placeholder="预设ID (如: my_dark_fantasy)" />
@@ -6080,6 +6368,7 @@ ${learned.sample}
 
                     if (!id || !name || !sys || !usr) { alert('请填写完整的必填项'); return; }
 
+                    // 写入旧兼容层，并回填总条目库（presets 为新权威数据源）
                     promptPresets[id] = {
                         name: name,
                         blocks: [
@@ -6088,6 +6377,7 @@ ${learned.sample}
                         ]
                     };
                     if (!currentPromptId || !promptPresets[currentPromptId]) currentPromptId = id;
+                    syncLegacyToPresets();
 
                     saveToLocal();
                     renderDropdowns();
@@ -6302,7 +6592,7 @@ ${learned.sample}
             }
 
             document.getElementById('modalBody').innerHTML = bodyHTML;
-            if (title.includes('提示词管理')) { initBlockEditor(); renderBlockEditor(); }
+            if (title.includes('提示词管理')) { renderPresetManager(); }
             document.getElementById('modalOverlay').classList.add('show');
             const confirmBtn = document.getElementById('modalConfirmBtn');
 
