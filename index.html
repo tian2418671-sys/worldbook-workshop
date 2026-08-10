@@ -2465,50 +2465,107 @@
         }
 
         async function fetchAvailableModels(event) {
-            const btn = event.target;
+            const btn = event.currentTarget || event.target;
             const baseInput = document.getElementById('apiBaseInput').value.trim();
             const keyInput = document.getElementById('apiKeyInput').value.trim();
 
-            if (!baseInput) { alert('请先填写 API Base URL'); return; }
+            if (!baseInput) {
+                alert('请先填写 API Base URL');
+                return;
+            }
 
             const originalText = btn.textContent;
-            btn.textContent = '🔄 拉取中...';
+            btn.textContent = '🔄 连接中...';
             btn.disabled = true;
 
-            try {
-                let url = baseInput.endsWith('/') ? baseInput.slice(0, -1) : baseInput;
-                const response = await fetch(`${url}/models`, {
-                    method: 'GET',
-                    headers: { 'Authorization': `Bearer ${keyInput}` }
-                });
+            // 解析可用的模型列表渲染到页面的辅助闭包函数
+            const renderModels = (models) => {
+                const dataList = document.getElementById('modelDataList');
+                if (dataList) {
+                    dataList.innerHTML = models.map(m => `<option value="${m}"></option>`).join('');
+                }
+                const modelInput = document.getElementById('apiModelInput');
+                if (modelInput && !modelInput.value) {
+                    modelInput.value = models[0];
+                }
 
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const modelListContainer = document.getElementById('modelListContainer');
+                const modelChips = document.getElementById('modelChips');
+                const modelCount = document.getElementById('modelCount');
+                if (modelListContainer && modelChips) {
+                    modelListContainer.style.display = 'block';
+                    if (modelCount) modelCount.textContent = models.length;
+                    modelChips.innerHTML = models.map(m =>
+                        `<span class="model-chip" title="点击填入" onclick="document.getElementById('apiModelInput').value='${escHtml(m)}'">${escHtml(m)}</span>`
+                    ).join('');
+                }
+                showToast(`成功获取 ${models.length} 个可用模型`);
+            };
+
+            let targetUrl = baseInput.endsWith('/') ? baseInput.slice(0, -1) : baseInput;
+            let fullModelsUrl = `${targetUrl}/models`;
+
+            try {
+                let response = null;
+
+                try {
+                    // 尝试 1：直连请求
+                    response = await fetch(fullModelsUrl, {
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${keyInput}` }
+                    });
+                } catch (fetchErr) {
+                    // 🚨 捕获到底层直连失败（通常为 CORS 跨域拦截）
+                    console.warn("直连拉取模型失败，疑似触发 CORS 跨域限制:", fetchErr);
+
+                    // 弹出双选确认框
+                    const userChoice = confirm(
+                        `⚠️ 无法直连获取模型列表（可能是目标 API 服务未开启跨域 CORS 许可）。\n\n` +
+                        `👉 点击【确定】：系统将通过公共 CORS 代理通道尝试重新拉取。\n` +
+                        `👉 点击【取消】：放弃自动拉取，您可以直接在“模型名称”框中手动填写。`
+                    );
+
+                    if (userChoice) {
+                        btn.textContent = '🔄 走代理重试中...';
+                        // 用户同意：使用代理前缀重新发送请求
+                        const proxyModelsUrl = `https://corsproxy.io/?${encodeURIComponent(fullModelsUrl)}`;
+
+                        response = await fetch(proxyModelsUrl, {
+                            method: 'GET',
+                            headers: { 'Authorization': `Bearer ${keyInput}` }
+                        }).catch(proxyErr => {
+                            throw new Error("代理通道连接失败或目标服务器响应异常。");
+                        });
+                    } else {
+                        // 用户点击取消：平滑引导手动输入
+                        showToast('已取消自动拉取，请在“模型名称”处直接输入代号');
+                        const modelInput = document.getElementById('apiModelInput');
+                        if (modelInput) modelInput.focus();
+                        return; // 直接平滑结束，不触发错误提示
+                    }
+                }
+
+                if (!response.ok) {
+                    throw new Error(`服务器响应异常 (HTTP 状态码: ${response.status})`);
+                }
 
                 const data = await response.json();
+                let models = [];
                 if (data.data && Array.isArray(data.data)) {
-                    const models = data.data.map(m => m.id);
-                    const dataList = document.getElementById('modelDataList');
-                    dataList.innerHTML = models.map(m => `<option value="${m}"></option>`).join('');
-                    const modelInput = document.getElementById('apiModelInput');
-                    if (!modelInput.value && models.length > 0) modelInput.value = models[0];
-                    // 🚀 在面板中展开显示全部模型，点击即可填入输入框
-                    const modelListContainer = document.getElementById('modelListContainer');
-                    const modelChips = document.getElementById('modelChips');
-                    const modelCount = document.getElementById('modelCount');
-                    if (modelListContainer && modelChips) {
-                        modelListContainer.style.display = 'block';
-                        if (modelCount) modelCount.textContent = models.length;
-                        modelChips.innerHTML = models.map(m =>
-                            `<span class="model-chip" title="点击填入" onclick="document.getElementById('apiModelInput').value='${escHtml(m)}'">${escHtml(m)}</span>`
-                        ).join('');
-                    }
-                    showToast(`成功获取 ${models.length} 个可用模型`);
-                } else {
-                    throw new Error("返回的数据格式不符合 OpenAI 标准规范");
+                    models = data.data.map(m => m.id);
+                } else if (Array.isArray(data)) {
+                    models = data.map(m => m.id || m.name || m);
                 }
+
+                if (models.length > 0) {
+                    renderModels(models);
+                } else {
+                    throw new Error("服务端返回的数据未能识别出合法的模型列表格式");
+                }
+
             } catch (err) {
-                console.error("拉取模型失败:", err);
-                alert(`获取模型列表失败: ${err.message}`);
+                console.error("模型拉取流程异常:", err);
+                alert(`提示：${err.message}\n\n这不影响核心功能，您可直接在“模型名称”框中输入模型代号使用。`);
             } finally {
                 btn.textContent = originalText;
                 btn.disabled = false;
