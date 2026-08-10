@@ -2520,9 +2520,9 @@
 
                     // 弹出双选确认框
                     const userChoice = confirm(
-                        `⚠️ 无法直连获取模型列表（可能是目标 API 服务未开启跨域 CORS 许可）。\n\n` +
-                        `👉 点击【确定】：系统将通过公共 CORS 代理通道尝试重新拉取。\n` +
-                        `👉 点击【取消】：放弃自动拉取，您可以直接在“模型名称”框中手动填写。`
+                        `⚠️ 无法直连获取模型列表（检测到目标 API 存在 CORS 跨域限制）。\n\n` +
+                        `👉 点击【确定】：自动通过公共 CORS 代理通道重试拉取。\n` +
+                        `👉 点击【取消】：放弃拉取，您可直接在“模型名称”框中手动填写。`
                     );
 
                     if (userChoice) {
@@ -2534,11 +2534,11 @@
                             method: 'GET',
                             headers: { 'Authorization': `Bearer ${keyInput}` }
                         }).catch(proxyErr => {
-                            throw new Error("代理通道连接失败或目标服务器响应异常。");
+                            throw new Error("代理通道连接失败或目标服务器无响应");
                         });
                     } else {
                         // 用户点击取消：平滑引导手动输入
-                        showToast('已取消自动拉取，请在“模型名称”处直接输入代号');
+                        showToast('已取消拉取，请在“模型名称”处手动输入代号');
                         const modelInput = document.getElementById('apiModelInput');
                         if (modelInput) modelInput.focus();
                         return; // 直接平滑结束，不触发错误提示
@@ -2560,12 +2560,12 @@
                 if (models.length > 0) {
                     renderModels(models);
                 } else {
-                    throw new Error("服务端返回的数据未能识别出合法的模型列表格式");
+                    throw new Error("未能在返回数据中识别出合法的模型列表");
                 }
 
             } catch (err) {
                 console.error("模型拉取流程异常:", err);
-                alert(`提示：${err.message}\n\n这不影响核心功能，您可直接在“模型名称”框中输入模型代号使用。`);
+                alert(`提示：${err.message}\n\n这不影响核心功能，您可直接在“模型名称”框中输入代号使用。`);
             } finally {
                 btn.textContent = originalText;
                 btn.disabled = false;
