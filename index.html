@@ -1638,6 +1638,7 @@
             <div class="toolbar">
                 <button class="btn btn-primary btn-sm" onclick="handleNewEntry()" title="新建条目">➕ 新建</button>
                 <button class="btn btn-sm" onclick="openGraph()" title="开启星图：可视化当前世界书条目关联" style="background: var(--bg-elevated); border: 1px solid var(--accent);">🌐 开启星图</button>
+                <button class="icon-btn" onclick="showModal('⚗️ 文本蒸馏')" title="小说蒸馏：多模型集群提取设定">⚗️</button>
                 <button class="icon-btn" onclick="showModal('🔍 触发预览')" title="触发扫描预览">🔍</button>
                 <button class="icon-btn" onclick="showModal('✨ 批量生成')" title="批量生成">✨</button>
                 <button class="icon-btn" onclick="showModal('🧠 智能调优')" title="全局调优">🧠</button>
@@ -6995,6 +6996,440 @@ ${learned.sample}
                     confirmBtn.textContent = '重新分析'; confirmBtn.disabled = false;
                 };
 
+            } else if (title.includes('文本蒸馏')) {
+                // ==========================================
+                //  ⚗️ 文本蒸馏：试跑预览版（MapReduce 集群引擎）
+                //  先试跑第一块预览 → 满意再全量续跑（Map）→ Reduce 合并 → 导入
+                // ==========================================
+                // 挂载全局增删维度的辅助函数
+                window.addDistillDim = function () {
+                    const container = document.getElementById('distillDimContainer');
+                    if (!container) return;
+                    const div = document.createElement('div');
+                    div.style.cssText = "display:flex; gap:6px; margin-bottom:6px;";
+                    div.innerHTML = `
+                        <input type="text" class="distill-dim-input" placeholder="输入维度 (例如: 武器: 名字、材质、特效)" style="flex:1; padding:4px 8px; background:var(--bg-input); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px; font-size:12px;">
+                        <button class="btn btn-sm btn-danger" type="button" onclick="this.parentElement.remove()">🗑️</button>
+                    `;
+                    container.appendChild(div);
+                };
+
+                bodyHTML = `
+                    <div id="distillInputArea">
+                        <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+                            <input type="file" id="distillFile" accept=".txt" style="font-size: 12px; flex: 1;">
+                            <span id="distillProgressText" style="font-size: 12px; color: var(--accent); font-weight: 600; display: none;">准备分配任务...</span>
+                        </div>
+                        <progress id="distillProgress" value="0" max="100" style="display: none; width: 100%; height: 6px; margin-bottom: 8px; accent-color: var(--accent);"></progress>
+
+                        <textarea id="distillInput" placeholder="在此粘贴文本，或在上方选择 TXT 文件（支持千万字巨型文件直接注入内存）..." style="min-height: 80px; margin-bottom: 8px;"></textarea>
+
+                        <!-- 🚀 1. 集群与分块配置 -->
+                        <div style="background: var(--bg-elevated); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 8px;">
+                            <div style="font-size: 12px; margin-bottom: 8px; font-weight: 600; color: var(--accent); display: flex; justify-content: space-between; align-items: center;">
+                                <span>🤖 分布式节点 (勾选抢单模型)</span>
+                                <div style="display: flex; align-items: center; gap: 6px; color: var(--text-secondary);">
+                                    <span>📦单块字数:</span>
+                                    <input type="number" id="distillChunkSize" value="3000" step="1000" min="1000" max="100000" style="width: 55px; padding: 2px; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary);">
+                                    <span>⚡单节点线程:</span>
+                                    <input type="number" id="distillThreads" value="2" min="1" max="5" style="width: 40px; padding: 2px; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary);">
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; margin-bottom: 4px;">
+                                ${Object.keys(apiConfigs).map(id => `
+                                    <label><input type="checkbox" class="distill-api-opt" value="${id}" ${id === currentApiId ? 'checked' : ''}> ${escHtml(apiConfigs[id].name)}</label>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- 🚀 2. 动态维度与总控提示词面板 -->
+                        <div style="background: var(--bg-elevated); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 10px;">
+                            <div style="font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--text-secondary);">🧠 阶段一：总控提取提示词 (Map)</div>
+                            <textarea id="distillMasterPrompt" style="min-height: 40px; margin-bottom: 8px; font-size: 12px;">你是一个顶级设定拆解专家。请对文本进行高浓度蒸馏，提取设定信息，抛弃水分废话。必须输出合法的 JSON 数组。</textarea>
+
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">🎯 动态提取维度目录：</span>
+                                <button class="btn btn-sm" type="button" onclick="window.addDistillDim()">➕ 新增维度</button>
+                            </div>
+                            <div id="distillDimContainer" style="max-height: 120px; overflow-y: auto; margin-bottom: 10px;">
+                                <div style="display:flex; gap:6px; margin-bottom:6px;">
+                                    <input type="text" class="distill-dim-input" value="人物(Characters): 外貌、身份、性格特征、人际关系" style="flex:1; padding:4px 8px; background:var(--bg-input); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px; font-size:12px;">
+                                    <button class="btn btn-sm btn-danger" type="button" onclick="this.parentElement.remove()">🗑️</button>
+                                </div>
+                                <div style="display:flex; gap:6px; margin-bottom:6px;">
+                                    <input type="text" class="distill-dim-input" value="剧情事件(Events): 当前发生的重大剧情、历史背景" style="flex:1; padding:4px 8px; background:var(--bg-input); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px; font-size:12px;">
+                                    <button class="btn btn-sm btn-danger" type="button" onclick="this.parentElement.remove()">🗑️</button>
+                                </div>
+                            </div>
+
+                            <hr style="border-color: var(--border-color); margin: 10px 0;">
+
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span style="font-size: 12px; font-weight: 600; color: var(--accent);">♻️ 阶段二：集群综合处理 (Reduce)</span>
+                                <label style="font-size: 12px; cursor:pointer;"><input type="checkbox" id="distillEnableReduce" checked> 蒸馏后自动触发合并汇总</label>
+                            </div>
+                            <textarea id="distillReducePrompt" style="min-height: 50px; font-size: 12px;">这是一批从长篇小说中分块提取的设定碎片。请找出其中描述同一事物/人物的条目，将它们合并去重，梳理出最完整的最终设定。必须严格保持相同的 JSON 数组格式输出。</textarea>
+                        </div>
+                    </div>
+
+                    <!-- 🚀 3. 实时流水线视窗与结果 -->
+                    <div id="distillResultArea" style="display:none; flex-direction:column; gap:8px;">
+                        <div style="font-size: 13px; color: var(--green); font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                            <span id="distillFinalMsg">🧪 预览试跑模式...</span>
+                            <button id="btnContinueDistill" class="btn btn-sm btn-primary" style="display:none;" onclick="window.continueFullDistill()">▶️ 效果满意，继续蒸馏剩余部分</button>
+                        </div>
+                        <div id="distillRealtimeLog" style="height: 100px; overflow-y: auto; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; font-size: 11px; color: var(--text-secondary); display:flex; flex-direction:column; gap:4px; font-family: monospace;"></div>
+                        <textarea id="distillOutput" style="min-height: 180px; font-family: monospace; font-size: 12px; line-height: 1.4; margin-top:4px;" placeholder="蒸馏 preview 结果将在此展现..."></textarea>
+                    </div>
+                `;
+
+                // 🚀 巨型文件防卡死加载引擎 + 注入"试跑预览第一块"按钮
+                setTimeout(() => {
+                    const fileInput = document.getElementById('distillFile');
+                    if (fileInput) {
+                        fileInput.addEventListener('change', function (e) {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                            const reader = new FileReader();
+                            reader.onload = function (ev) {
+                                const content = ev.target.result;
+                                const inputArea = document.getElementById('distillInput');
+                                if (file.size > 1024 * 1024) {
+                                    window._hugeFileContent = content;
+                                    inputArea.value = `[🛡️ 巨型文件保护启动]\n大小: ${fileSizeMB} MB。已直接注入底层引擎。`;
+                                    inputArea.disabled = true;
+                                    inputArea.style.color = "var(--accent)";
+                                } else {
+                                    window._hugeFileContent = null;
+                                    inputArea.value = content;
+                                    inputArea.disabled = false;
+                                    inputArea.style.color = "var(--text-primary)";
+                                }
+                                showToast(`已加载文件：${file.name}（共 ${content.length} 字）`);
+                            };
+                            reader.readAsText(file);
+                        });
+                    }
+
+                    // 🛠️ 模态框底部注入"🧪 试跑预览第一块"按钮（防重复注入）
+                    const modalFooter = document.querySelector('#modalContainer .modal-footer') || document.querySelector('.modal-footer');
+                    if (modalFooter && !document.getElementById('btnPreviewDistill')) {
+                        const previewBtn = document.createElement('button');
+                        previewBtn.id = 'btnPreviewDistill';
+                        previewBtn.className = 'btn btn-sm';
+                        previewBtn.style.marginRight = '8px';
+                        previewBtn.style.borderColor = 'var(--accent)';
+                        previewBtn.style.color = 'var(--accent)';
+                        previewBtn.textContent = '🧪 试跑预览第一块';
+                        previewBtn.onclick = function () { window.runDistillTask(true); };
+                        modalFooter.insertBefore(previewBtn, modalFooter.firstChild);
+                    }
+                }, 100);
+
+                // 🚀 集群专用的隔离请求单元（避免干扰聊天核心逻辑，同时写入调用日志便于追溯）
+                async function fetchDistillChunk(apiId, promptStr) {
+                    const config = apiConfigs[apiId];
+                    if (!config || !config.api_key) return null;
+                    const startTime = Date.now();
+                    try {
+                        let url = config.api_base.endsWith('/') ? config.api_base.slice(0, -1) : config.api_base;
+                        const payload = { model: config.model, messages: [{ role: 'user', content: promptStr }] };
+                        if (config.max_tokens) payload.max_tokens = config.max_tokens;
+                        if (config.temperature !== undefined) payload.temperature = config.temperature;
+
+                        const response = await fetchWithRetry(`${url}/chat/completions`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.api_key}` },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        const data = await response.json();
+
+                        apiLogs.unshift({
+                            time: new Date().toLocaleString('zh-CN', { hour12: false }),
+                            model: config.model,
+                            action: '集群蒸馏',
+                            tokens: data.usage?.total_tokens || 0,
+                            durationMs: Date.now() - startTime,
+                            status: '成功',
+                            detail: `集群节点 [${config.name}] 成功提取分块`
+                        });
+                        if (apiLogs.length > 50) apiLogs.pop();
+                        saveToLocal();
+
+                        return data.choices[0].message.content;
+                    } catch (err) {
+                        console.warn(`节点 [${config.name}] 故障:`, err);
+                        apiLogs.unshift({
+                            time: new Date().toLocaleString('zh-CN', { hour12: false }),
+                            model: config.model,
+                            action: '集群蒸馏',
+                            tokens: 0,
+                            durationMs: Date.now() - startTime,
+                            status: '失败',
+                            detail: err.message
+                        });
+                        if (apiLogs.length > 50) apiLogs.pop();
+                        saveToLocal();
+                        return null;
+                    }
+                }
+
+                // 🚀 全局蒸馏核心执行器（支持 isPreview 预览模式 + 从指定分块续跑）
+                window.runDistillTask = async function (isPreview = false, startChunkIndex = 0, previousExtractedData = []) {
+                    const resultArea = document.getElementById('distillResultArea');
+                    const outputArea = document.getElementById('distillOutput');
+                    const inputArea = document.getElementById('distillInputArea');
+                    const realtimeLog = document.getElementById('distillRealtimeLog');
+                    const finalMsg = document.getElementById('distillFinalMsg');
+                    const confirmBtn = document.getElementById('modalConfirmBtn');
+                    const previewBtn = document.getElementById('btnPreviewDistill');
+                    const continueBtn = document.getElementById('btnContinueDistill');
+                    const progress = document.getElementById('distillProgress');
+                    const progressText = document.getElementById('distillProgressText');
+
+                    let inputText = window._hugeFileContent || document.getElementById('distillInput').value.trim();
+                    if (!inputText || inputText.startsWith('[🛡️')) {
+                        if (!window._hugeFileContent) { alert('请输入要蒸馏的文本！'); return; }
+                    }
+
+                    const dimInputs = Array.from(document.querySelectorAll('.distill-dim-input')).map(inp => inp.value.trim()).filter(v => v);
+                    if (dimInputs.length === 0) { alert('请至少配置一个提取维度目录！'); return; }
+                    const masterPrompt = document.getElementById('distillMasterPrompt').value.trim();
+
+                    const selectedApis = Array.from(document.querySelectorAll('.distill-api-opt:checked')).map(cb => cb.value);
+                    if (selectedApis.length === 0) { alert('请至少勾选一个集群节点！'); return; }
+
+                    const maxChunkSize = parseInt(document.getElementById('distillChunkSize').value) || 3000;
+                    const threadsPerNode = Math.max(1, Math.min(5, parseInt(document.getElementById('distillThreads').value) || 1));
+
+                    if (confirmBtn) confirmBtn.disabled = true;
+                    if (previewBtn) previewBtn.disabled = true;
+
+                    inputArea.style.display = 'none';
+                    resultArea.style.display = 'flex';
+                    if (continueBtn) continueBtn.style.display = 'none';
+
+                    // 切片算法（按段落切，绝不切断句子）
+                    const paragraphs = inputText.split(/\n+/);
+                    const chunks = [];
+                    let currentChunk = '';
+                    for (const p of paragraphs) {
+                        if ((currentChunk.length + p.length) > maxChunkSize && currentChunk.length > 0) {
+                            chunks.push(currentChunk);
+                            currentChunk = '';
+                        }
+                        currentChunk += p + '\n';
+                    }
+                    if (currentChunk.trim().length > 0) chunks.push(currentChunk);
+
+                    // 缓存到全局，方便"继续"续发
+                    window._distillChunksCache = chunks;
+                    window._distillSelectedApisCache = selectedApis;
+
+                    const mapPrompt = `${masterPrompt}\n\n【要求提取的维度目录】:\n${dimInputs.map(d => '- ' + d).join('\n')}\n\n【必须严格输出JSON数组结构】:\n[{"keys":["主触发词"],"content":"文本","order":100,"tag":"char/loc/item/org/event"}]\n\n【片段文本】:\n`;
+
+                    // ====== 🧪 1. 试跑预览模式：只跑第一块 ======
+                    if (isPreview) {
+                        if (finalMsg) finalMsg.textContent = '🧪 正在对【第一块文本】进行试跑预览...';
+                        realtimeLog.innerHTML = `<div style="color:var(--accent);">🧪 试跑启动：正在将第 1/${chunks.length} 块文本发往大模型...</div>`;
+
+                        const targetApi = selectedApis[0];
+                        const result = await fetchDistillChunk(targetApi, mapPrompt + chunks[0]);
+                        const extracted = extractJsonArray(result);
+
+                        if (extracted && extracted.length > 0) {
+                            outputArea.value = JSON.stringify(extracted, null, 2);
+                            realtimeLog.innerHTML += `<div style="color:var(--green);">✅ 试跑成功！已从第一块文本中提炼出 ${extracted.length} 个条目。</div>`;
+                            if (finalMsg) finalMsg.textContent = '🧪 预览完成！请查阅上方结果。满意可点击右侧继续：';
+                            if (continueBtn) continueBtn.style.display = 'inline-block';
+                            window._distillPreviewData = extracted; // 保存第一块试跑的数据
+                            showToast('试跑成功！请检查预览效果。');
+                        } else {
+                            realtimeLog.innerHTML += `<div style="color:var(--red);">❌ 试跑解析失败：未能提取到有效的 JSON，请修改提示词或维度后重试。</div>`;
+                            // 恢复输入区，方便用户当场修改提示词/维度/分块大小后重新试跑
+                            inputArea.style.display = 'block';
+                            resultArea.style.display = 'none';
+                            if (finalMsg) finalMsg.textContent = '🧪 预览试跑模式...';
+                            alert("试跑预览失败：大模型未输出规范的 JSON 数组。您可以微调提示词后再试。");
+                        }
+
+                        if (confirmBtn) confirmBtn.disabled = false;
+                        if (previewBtn) previewBtn.disabled = false;
+                        return;
+                    }
+
+                    // ====== 🚀 2. 全量蒸馏模式（支持从 startChunkIndex 续跑） ======
+                    const taskChunks = chunks.slice(startChunkIndex);
+                    const taskQueue = taskChunks.map((text, idx) => ({ text: text, originalIndex: startChunkIndex + idx, retries: 0 }));
+                    const totalChunks = chunks.length;
+                    let completedCount = startChunkIndex;
+                    let allExtractedData = [...previousExtractedData];
+
+                    progress.style.display = 'block';
+                    progressText.style.display = 'inline-block';
+                    progress.max = totalChunks;
+                    progress.value = completedCount;
+
+                    realtimeLog.innerHTML += `<div style="color:var(--accent);">🚀 全量蒸馏启动，剩余 ${taskQueue.length} 个数据包进入并发队列...</div>`;
+                    realtimeLog.scrollTop = realtimeLog.scrollHeight;
+
+                    async function clusterWorker(apiId, workerName) {
+                        while (taskQueue.length > 0) {
+                            const task = taskQueue.shift();
+                            if (!task) break;
+                            if (confirmBtn) confirmBtn.textContent = `⚗️ 正在全量蒸馏 (${completedCount}/${totalChunks})...`;
+
+                            const result = await fetchDistillChunk(apiId, mapPrompt + task.text);
+                            const extracted = extractJsonArray(result);
+
+                            if (extracted && extracted.length > 0) {
+                                allExtractedData.push(...extracted);
+                                completedCount++;
+                                progress.value = completedCount;
+                                progressText.textContent = `进度: ${completedCount}/${totalChunks}`;
+                                const titles = extracted.map(item => Array.isArray(item.keys) ? item.keys[0] : item.keys).join(', ');
+                                realtimeLog.innerHTML += `<div>[${workerName}] 完成第 ${task.originalIndex + 1} 块: <span style="color:var(--yellow);">${escHtml(titles)}</span></div>`;
+                                realtimeLog.scrollTop = realtimeLog.scrollHeight;
+                            } else {
+                                task.retries++;
+                                if (task.retries < 3) {
+                                    realtimeLog.innerHTML += `<div style="color:var(--red);">[${workerName}] 第 ${task.originalIndex + 1} 块重试...</div>`;
+                                    taskQueue.push(task);
+                                    await new Promise(r => setTimeout(r, 2000));
+                                } else {
+                                    completedCount++;
+                                    progress.value = completedCount;
+                                }
+                            }
+                            await new Promise(r => setTimeout(r, 800));
+                        }
+                    }
+
+                    const workers = [];
+                    selectedApis.forEach(apiId => {
+                        const apiName = apiConfigs[apiId].name;
+                        for (let w = 0; w < threadsPerNode; w++) {
+                            workers.push(clusterWorker(apiId, `${apiName}-${w + 1}`));
+                        }
+                    });
+
+                    await Promise.all(workers);
+
+                    // ====== ♻️ 3. Reduce 集群综合汇总处理 ======
+                    const enableReduce = document.getElementById('distillEnableReduce').checked;
+                    if (allExtractedData.length > 0) {
+                        if (enableReduce) {
+                            if (confirmBtn) confirmBtn.textContent = '♻️ 正在将全量碎片发送至集群 Reduce 汇总...';
+                            if (finalMsg) finalMsg.textContent = '♻️ 阶段二：集群综合汇总合并中...';
+                            realtimeLog.innerHTML += `<div style="color:var(--accent); margin-top:8px;">♻️ 启动 Reduce 处理...合并去重中</div>`;
+                            realtimeLog.scrollTop = realtimeLog.scrollHeight;
+
+                            // 针对大量数据，切分为小批次让集群归约合并，防止 Token 爆炸
+                            const reducePromptStr = document.getElementById('distillReducePrompt').value.trim();
+                            const reduceBatches = [];
+                            let currentBatch = [];
+                            let currentStrLen = 0;
+                            // 按大致字符长度（预估 5000 字一批）拆分 Reduce 任务
+                            allExtractedData.forEach(item => {
+                                const itemStr = JSON.stringify(item);
+                                if (currentStrLen + itemStr.length > 5000 && currentBatch.length > 0) {
+                                    reduceBatches.push(currentBatch);
+                                    currentBatch = [];
+                                    currentStrLen = 0;
+                                }
+                                currentBatch.push(item);
+                                currentStrLen += itemStr.length;
+                            });
+                            if (currentBatch.length > 0) reduceBatches.push(currentBatch);
+
+                            let finalReducedData = [];
+
+                            // 借助刚才的 API 列表，轮询派发 Reduce 任务
+                            let apiIndex = 0;
+                            for (let i = 0; i < reduceBatches.length; i++) {
+                                const targetApiId = selectedApis[apiIndex % selectedApis.length];
+                                apiIndex++;
+                                const batchPrompt = `${reducePromptStr}\n\n【需要合并汇总的 JSON 片段】:\n${JSON.stringify(reduceBatches[i])}`;
+
+                                realtimeLog.innerHTML += `<div>分配 Reduce 任务 ${i + 1}/${reduceBatches.length} 给 [${apiConfigs[targetApiId].name}]</div>`;
+                                realtimeLog.scrollTop = realtimeLog.scrollHeight;
+
+                                const reduceResult = await fetchDistillChunk(targetApiId, batchPrompt);
+                                const reducedArray = extractJsonArray(reduceResult);
+
+                                if (reducedArray && reducedArray.length > 0) {
+                                    finalReducedData.push(...reducedArray);
+                                } else {
+                                    // 若 Reduce 失败，保留原始碎片不至于丢数据
+                                    finalReducedData.push(...reduceBatches[i]);
+                                }
+                                await new Promise(r => setTimeout(r, 1000));
+                            }
+                            allExtractedData = finalReducedData;
+                        }
+
+                        // 最终展示
+                        outputArea.value = JSON.stringify(allExtractedData, null, 2);
+                        if (finalMsg) finalMsg.textContent = `✅ 全量蒸馏与汇总完成！共生成 ${allExtractedData.length} 个终极条目：`;
+                        if (confirmBtn) confirmBtn.textContent = '📥 确认导入工作台';
+                        showToast('全量蒸馏圆满完成！');
+                    } else {
+                        alert("蒸馏失败：未能提取到任何有效数据。");
+                        inputArea.style.display = 'block';
+                        resultArea.style.display = 'none';
+                    }
+
+                    if (confirmBtn) confirmBtn.disabled = false;
+                    if (previewBtn) previewBtn.disabled = false;
+                    progress.style.display = 'none';
+                    progressText.style.display = 'none';
+                };
+
+                // 🚀 续发全局函数：试跑满意后，从第 2 块开始无缝跑完剩余部分
+                window.continueFullDistill = function () {
+                    const prevData = window._distillPreviewData || [];
+                    window.runDistillTask(false, 1, prevData);
+                };
+
+                modalConfirmCallback = async function () {
+                    const confirmBtn = document.getElementById('modalConfirmBtn');
+                    const outputArea = document.getElementById('distillOutput');
+
+                    // 如果处于最后阶段：确认写入工作台
+                    if (confirmBtn.textContent.includes('确认导入')) {
+                        try {
+                            const parsed = JSON.parse(outputArea.value);
+                            if (!Array.isArray(parsed)) throw new Error("解析内容必须是 JSON 数组");
+                            const wb = getCurrentWorldbook();
+                            let added = 0;
+                            parsed.forEach(item => {
+                                if (item.keys && item.content) {
+                                    const newUid = Date.now() + '_' + Math.floor(Math.random() * 10000);
+                                    wb.entries[newUid] = {
+                                        uid: newUid, keys: Array.isArray(item.keys) ? item.keys : [item.keys], content: item.content, constant: false, disable: false, order: typeof item.order === 'number' ? item.order : 100, depth: 4, position: 1, selectiveLogic: 0, excludeRecursion: false, probability: 100, role: 0, tag: item.tag || 'auto'
+                                    };
+                                    added++;
+                                }
+                            });
+                            if (added > 0) {
+                                saveToLocal(); renderAll();
+                                showToast(`成功写入 ${added} 个条目！`);
+                                closeModal();
+                            } else {
+                                alert("未发现有效的条目格式。");
+                            }
+                        } catch (e) {
+                            alert("导入失败：JSON 格式损坏。\n" + e.message);
+                        }
+                        return;
+                    }
+
+                    // 默认点击右下角确认按钮：不试跑，直接启动全量蒸馏
+                    window.runDistillTask(false, 0, []);
+                };
+
             } else if (title.includes('自定义编辑')) {
                 bodyHTML = `
                     <p>请在下方输入您的<strong>自定义修改指令</strong>（例如：将文风改为废土风格、缩写为50个字、补充主角的外貌描写等）：</p>
@@ -7068,7 +7503,9 @@ ${learned.sample}
             document.getElementById('modalOverlay').classList.add('show');
             const confirmBtn = document.getElementById('modalConfirmBtn');
 
-            if (title.includes('触发预览')) {
+            if (title.includes('文本蒸馏')) {
+                confirmBtn.textContent = '⚗️ 开始蒸馏';
+            } else if (title.includes('触发预览')) {
                 confirmBtn.textContent = '开始扫描';
             } else if (!title.includes('审查') && !title.includes('智能调优') && !title.includes('生成') && !title.includes('扩写') && !title.includes('润色') && !title.includes('批量')) {
                 confirmBtn.textContent = '确认';
