@@ -1523,18 +1523,131 @@
         }
 
         @media (max-width: 768px) {
+            /* 📱 聊天面板悬浮在底部导航栏之上（不遮挡输入区） */
             .chat-panel {
                 width: 100%;
                 right: -100%;
-                top: auto;
-                bottom: 0;
-                height: 80vh;
+                top: 52px;
+                bottom: 50px;
+                height: auto;
                 border-top: 1px solid var(--border-color);
                 border-left: none;
+                z-index: 950;
             }
 
             .chat-panel.open {
                 right: 0;
+            }
+        }
+
+        /* ===== 📱 移动端强制响应式与防退缩补丁 ===== */
+        @media screen and (max-width: 768px) {
+            /* 1. 强制页面根容器锁定视口宽度，防止横向溢出 */
+            html, body {
+                width: 100vw !important;
+                max-width: 100vw !important;
+                overflow-x: hidden !important;
+                position: relative !important;
+                height: 100vh !important;
+            }
+
+            /* 2. 顶部导航栏强行单行横向滚动，禁止将页面撑宽 */
+            .navbar {
+                width: 100vw !important;
+                max-width: 100vw !important;
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
+                white-space: nowrap !important;
+                justify-content: flex-start !important;
+                -webkit-overflow-scrolling: touch;
+                box-sizing: border-box !important;
+            }
+            .navbar-left, .navbar-center, .navbar-right {
+                flex-shrink: 0 !important;
+            }
+
+            /* 3. 主容器适配 */
+            .main {
+                width: 100vw !important;
+                max-width: 100vw !important;
+                flex-direction: column !important;
+                height: calc(100vh - 102px) !important;
+                overflow: hidden !important;
+            }
+
+            /* 4. 视图隔离：根据 main 的类名强制显示/隐藏区域 */
+
+            /* 默认/目录视图 (view-list) */
+            .main.view-list .sidebar-left {
+                display: flex !important;
+                width: 100% !important;
+                height: 35% !important;
+                max-height: none !important;
+                border-right: none !important;
+                border-bottom: 2px solid var(--border-color) !important;
+            }
+            .main.view-list .sidebar-middle {
+                display: flex !important;
+                width: 100% !important;
+                height: 65% !important;
+                max-height: none !important;
+                border-right: none !important;
+            }
+            .main.view-list .editor-panel {
+                display: none !important;
+            }
+
+            /* 编辑视图 (view-editor) */
+            .main.view-editor .sidebar-left,
+            .main.view-editor .sidebar-middle {
+                display: none !important;
+            }
+            .main.view-editor .editor-panel {
+                display: flex !important;
+                width: 100% !important;
+                height: 100% !important;
+                padding: 12px !important;
+                overflow-y: auto !important;
+            }
+
+            /* 5. 底部固定导航栏 */
+            .mobile-bottom-nav {
+                display: flex !important;
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 50px !important;
+                background: var(--bg-surface) !important;
+                border-top: 1px solid var(--border-color) !important;
+                z-index: 2000 !important;
+            }
+            .mobile-bottom-nav button {
+                flex: 1 !important;
+                background: transparent !important;
+                border: none !important;
+                color: var(--text-muted) !important;
+                font-size: 14px !important;
+                font-weight: bold !important;
+            }
+            .mobile-bottom-nav button.active {
+                color: var(--accent) !important;
+            }
+
+            /* 编辑器内部元数据表单改为单列 */
+            .editor-meta {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
+        /* 💻 桌面端：隐藏手机特有元素，解除视图类名限制 */
+        @media (min-width: 769px) {
+            .mobile-bottom-nav {
+                display: none;
+            }
+
+            .sidebar-left, .sidebar-middle, .editor-panel {
+                display: flex !important;
             }
         }
     
@@ -3410,16 +3523,41 @@ ${extraContext.trim()}`;
                 }
             }
 
-            // 响应式交互：如果在手机端竖屏模式下，点击条目后自动平滑滚动到下方编辑区
+            // 🚀 响应式交互升级：手机端点击条目，瞬间全屏切换到编辑视图！
             if (window.innerWidth <= 768) {
-                const editorElement = document.getElementById('editorPanel');
-                if (editorElement) {
-                    // 减去吸顶导航栏的高度（大约100px）以防标题被遮挡
-                    const y = editorElement.getBoundingClientRect().top + window.scrollY - 100;
-                    window.scrollTo({ top: y, behavior: 'smooth' });
-                }
+                switchMobileView('editor');
             }
         }
+
+        // ==========================================
+        // 📱 手机端：原生 APP 级视图切换逻辑
+        // ==========================================
+        function switchMobileView(view) {
+            const main = document.querySelector('.main');
+            const btnList = document.getElementById('nav-btn-list');
+            const btnEditor = document.getElementById('nav-btn-editor');
+
+            if (!main) return;
+
+            if (view === 'list') {
+                main.classList.remove('view-editor');
+                main.classList.add('view-list');
+                if (btnList) btnList.classList.add('active');
+                if (btnEditor) btnEditor.classList.remove('active');
+            } else {
+                main.classList.remove('view-list');
+                main.classList.add('view-editor');
+                if (btnList) btnList.classList.remove('active');
+                if (btnEditor) btnEditor.classList.add('active');
+            }
+        }
+
+        // 页面初始化时，默认进入"目录视图"（仅手机端）
+        document.addEventListener('DOMContentLoaded', () => {
+            const main = document.querySelector('.main');
+            if (main && window.innerWidth <= 768) main.classList.add('view-list');
+        });
+
         function deleteWorldbook(uid) {
             takeSnapshot('删除世界书');
             const idx = worldbooks.findIndex(w => w.uid === uid);
@@ -7637,6 +7775,13 @@ ${learned.sample}
             <button class="btn" onclick="closeGraph()" style="background: var(--bg-elevated); color: var(--red); border: 1px solid var(--red);">❌ 关闭星图</button>
         </div>
         <div id="graphContainer" style="width: 100%; height: 100%;"></div>
+    </div>
+
+    <!-- 📱 手机端特有：底部导航栏（原生 APP 体验） -->
+    <div class="mobile-bottom-nav">
+        <button id="nav-btn-list" class="active" onclick="switchMobileView('list')">📚 目录</button>
+        <button id="nav-btn-editor" onclick="switchMobileView('editor')">📝 编辑</button>
+        <button onclick="toggleChatPanel()">💬 助手</button>
     </div>
 </body>
 
