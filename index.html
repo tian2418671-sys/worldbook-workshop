@@ -3608,7 +3608,8 @@ ${extraContext.trim()}`;
             } else if (type === 'boolean') {
                 entry[field] = Boolean(value);
             } else if (type === 'array') {
-                entry[field] = value.split(',').map(s => s.trim()).filter(s => s);
+                // 🀄 同时支持英文逗号、中文逗号、顿号、分号（中文用户习惯输入「，」「、」）
+                entry[field] = value.split(/[,，、;；]/).map(s => s.trim()).filter(s => s);
             } else {
                 entry[field] = value;
             }
@@ -3631,12 +3632,13 @@ ${extraContext.trim()}`;
                 entry.name = value.trim();
             } else if (field === 'keys') {
                 // 只改触发关键词，绝不触碰 entry.comment
-                entry.keys = value.split(',').map(k => k.trim()).filter(Boolean);
+                // 🀄 支持中英文逗号、顿号、分号（中文输入法下常打出「，」「、」）
+                entry.keys = value.split(/[,，、;；]/).map(k => k.trim()).filter(Boolean);
             } else if (field === 'content') {
                 entry.content = value;
             } else if (field === 'tags') {
                 // 🏷️ 自定义标签（逗号分隔 → 数组），可自建任意标签
-                entry.tags = value.split(',').map(t => t.trim()).filter(Boolean);
+                entry.tags = value.split(/[,，、;；]/).map(t => t.trim()).filter(Boolean);
             }
             saveToLocal(); // 持久化
             renderEntries(); // 刷新中间列表标题
@@ -3740,6 +3742,47 @@ ${extraContext.trim()}`;
             input.click();
         }
 
+        // 🔎 导出前体检：找出「导入酒馆后大概率触发不到」的条目
+        function diagnoseExportRisks(wb) {
+            const risks = [];
+            Object.values(wb.entries || {}).forEach(e => {
+                if (!e) return;
+                const name = e.comment || (Array.isArray(e.keys) && e.keys[0]) || `UID:${e.uid}`;
+                const keys = Array.isArray(e.keys) ? e.keys.filter(k => k && String(k).trim()) : [];
+                if (e.disable) return; // 已禁用属正常
+                if (e.constant) return; // 常驻条目不依赖关键词
+
+                if (keys.length === 0) {
+                    // 🏷️ 识别特殊用途条目：这些本来就不靠关键词触发，不应误报
+                    const n = String(name);
+                    const isSpecial =
+                        /\[(mvu_update|InitVar|initvar|GENERATE|RENDER)\]|mvu|变量更新|变量列表|请勿打开|变量输出格式/i.test(n) ||
+                        /\[(mvu_update|InitVar|initvar|GENERATE|RENDER)\]/i.test(String(e.content || '').slice(0, 200));
+                    const isGuideline = /准则|规则|守则|文风|扮演|指南|说明|模板|格式|设定总纲/.test(n);
+
+                    if (isSpecial) {
+                        risks.push(`「${name}」无关键词但属于脚本/变量类条目（[mvu_update]、[InitVar] 等）→ 需在酒馆中由对应脚本/正则使用，通常不受关键词触发影响`);
+                    } else if (isGuideline) {
+                        risks.push(`「${name}」无关键词但看起来是"准则/规则/文风"类条目 → 这类通常应在酒馆里设为「常驻(🔵)」，否则不会生效`);
+                    } else {
+                        risks.push(`「${name}」没有主关键词，且未设常驻 → 永远不会被触发`);
+                    }
+                    return;
+                }
+                const hasSecondary = Array.isArray(e.secondary_keys) && e.secondary_keys.filter(k => k && String(k).trim()).length > 0;
+                const logic = parseInt(e.selectiveLogic) || 0;
+                // 有次级关键词时，AND ALL(1) / NOT ANY(2) / NOT ALL(3) 都极易把条目锁死
+                if (hasSecondary && (logic === 1 || logic === 2 || logic === 3)) {
+                    const logicName = logic === 1 ? 'AND ALL (必须全部命中)' : logic === 2 ? 'NOT ANY (命中即排除)' : 'NOT ALL';
+                    risks.push(`「${name}」设了次级关键词 + ${logicName} → 条件很难同时满足`);
+                }
+                if (e.probability !== undefined && parseInt(e.probability) < 100) {
+                    risks.push(`「${name}」触发概率 ${e.probability}%（酒馆里可能多次不触发）`);
+                }
+            });
+            return risks;
+        }
+
         function exportWorldbook() {
             const wb = getCurrentWorldbook();
             if (!wb) { showToast('无世界书可导出'); return; }
@@ -3755,29 +3798,59 @@ ${extraContext.trim()}`;
                 };
 
                 // 🚀 核心修复：遍历所有条目，将字段名映射为 SillyTavern 官方标准 (V2/V3)
+                // ⚠️ 注意：酒馆世界书条目用 "key"/"keysecondary"（单数 key），
+                //    "keys" 是工坊内部字段名，导出时不能直接照搬。
+                //    同时必须带齐 case_sensitive / match_whole_words / selective / group 等，
+                //    否则酒馆会退回默认值，导致「关键词明明写了却匹配不到」。
                 Object.values(wb.entries || {}).forEach(e => {
                     if (!e) return;
                     // 确保 UID 为字符串以兼容新版酒馆
                     const sUid = String(e.uid);
+                    // 关键词归一化：兼容数组 / 逗号字符串 / 空值，过滤空串
+                    const normKeys = (v) => {
+                        if (Array.isArray(v)) return v.map(k => String(k).trim()).filter(Boolean);
+                        if (typeof v === 'string') return v.split(/[,，、;；]/).map(k => k.trim()).filter(Boolean);
+                        return [];
+                    };
+                    const primaryKeys = normKeys(e.keys);
+                    const secondaryKeys = normKeys(e.secondary_keys);
+                    // selective：只有存在次级关键词时酒馆才需要过滤逻辑，
+                    // 无次级关键词时必须是 false，否则 AND ALL 等逻辑会把条目永久锁死
+                    const isSelective = secondaryKeys.length > 0;
+
                     exportData.entries[sUid] = {
-                        uid: e.uid,
+                        uid: Number(e.uid),
                         // 酒馆认的叫 "key" 和 "keysecondary"，不是 "keys"
-                        key: Array.isArray(e.keys) ? e.keys : (e.keys ? String(e.keys).split(',') : []),
-                        keysecondary: [],
+                        key: primaryKeys,
+                        keysecondary: secondaryKeys,
                         comment: e.comment || '',
                         content: e.content || '',
                         constant: !!e.constant,
-                        selective: !!e.selective,
-                        selectiveLogic: e.selectiveLogic || 0,
+                        vectorized: !!e.vectorized,
+                        selective: isSelective,
+                        selectiveLogic: parseInt(e.selectiveLogic) || 0,
                         addMemo: !!e.addMemo,
                         order: parseInt(e.order) || 100,
-                        position: e.position !== undefined ? e.position : 1,
+                        position: e.position !== undefined ? parseInt(e.position) : 1,
                         // 确保 disable 为布尔值
                         disable: !!e.disable,
                         excludeRecursion: !!e.excludeRecursion,
-                        probability: e.probability !== undefined ? e.probability : 100,
-                        useProbability: true,
-                        depth: e.depth !== undefined ? e.depth : 4
+                        probability: e.probability !== undefined ? parseInt(e.probability) : 100,
+                        useProbability: e.probability !== undefined && parseInt(e.probability) < 100,
+                        depth: e.depth !== undefined ? parseInt(e.depth) : 4,
+                        role: e.role !== undefined ? parseInt(e.role) : 0,
+                        // 🔑 以下字段缺失时酒馆退回默认值（false），是「匹配不到」的高频元凶
+                        case_sensitive: !!e.case_sensitive,
+                        match_whole_words: !!e.match_whole_words,
+                        group: e.group || '',
+                        group_override: !!e.group_override,
+                        use_group_scoring: !!e.use_group_scoring,
+                        sticky: parseInt(e.sticky) || 0,
+                        cooldown: parseInt(e.cooldown) || 0,
+                        delay: parseInt(e.delay) || 0,
+                        prevent_recursion: !!e.prevent_recursion,
+                        delay_until_recursion: !!e.delay_until_recursion,
+                        outlet_name: e.outlet_name || ''
                     };
                 });
 
@@ -3791,7 +3864,28 @@ ${extraContext.trim()}`;
                 document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-                showToast(`已成功导出兼容 SillyTavern 的文件: ${exportData.name}.json`);
+                // 🔎 导出后体检：有风险条目时提示（不阻断导出）
+                const risks = diagnoseExportRisks(wb);
+                if (risks.length > 0) {
+                    const preview = risks.slice(0, 8).join('\n');
+                    const more = risks.length > 8 ? `\n…另有 ${risks.length - 8} 条` : '';
+                    console.warn('[导出体检] 可能触发不到的条目：', risks);
+                    showModal('⚠️ 导出完成，但发现触发风险', {
+                        bodyHTML: `
+                            <div style="font-size:13px; line-height:1.7;">
+                                <p style="margin:0 0 8px 0; color:#e0b020;">文件已导出，但下列条目导入酒馆后<b>大概率不会被触发</b>：</p>
+                                <pre style="white-space:pre-wrap; background:#1e1e1e; border:1px solid #444; border-radius:6px; padding:10px; font-size:12px; max-height:320px; overflow:auto;">${escHtml(preview + more)}</pre>
+                                <p style="margin:8px 0 0 0; color:#aaa; font-size:12px;">
+                                    常见原因：主关键词为空 / 次级关键词过滤逻辑过严 / 触发概率低于 100%。<br>
+                                    建议：把主关键词改为对话中真实会出现的词，或勾选「🔵 常驻」。
+                                </p>
+                            </div>`,
+                        confirmText: '知道了',
+                        onConfirm: () => closeModal()
+                    });
+                } else {
+                    showToast(`已成功导出兼容 SillyTavern 的文件: ${exportData.name}.json`);
+                }
             } catch (err) {
                 console.error("导出世界书失败:", err);
                 alert("导出失败：" + err.message);
@@ -3856,7 +3950,7 @@ ${extraContext.trim()}`;
                 const titleMatch = triggerBlock.match(/Title:\s*"?([^"\n]+)"?/i);
                 const keysMatch = triggerBlock.match(/Comma_separated_list:\s*"?([^"\n]+)"?/i);
                 let keysStr = keysMatch ? keysMatch[1] : (titleMatch ? titleMatch[1] : '未命名');
-                let keys = keysStr.split(',').map(k => k.trim()).filter(Boolean);
+                let keys = keysStr.split(/[,，、;；]/).map(k => k.trim()).filter(Boolean);
                 if (keys.length === 0) keys = ['未命名'];
                 let content = contentBlock.replace(/```\s*$/g, '').trim();
 
@@ -3877,12 +3971,17 @@ ${extraContext.trim()}`;
             };
             arr.forEach((item, index) => {
                 const newUid = Date.now() + index;
+                // 🀄 字符串关键词也要拆分（支持中英文逗号、顿号、分号）
+                const nk = (v) => {
+                    if (Array.isArray(v)) return v.map(x => String(x).trim()).filter(Boolean);
+                    if (typeof v === 'string') return v.split(/[,，、;；]/).map(x => x.trim()).filter(Boolean);
+                    return [];
+                };
                 // 【核心容错】合并各种可能的关键字字段
                 let combinedKeys = [];
-                if (Array.isArray(item.keys)) combinedKeys = combinedKeys.concat(item.keys);
-                if (Array.isArray(item.keys2)) combinedKeys = combinedKeys.concat(item.keys2);
-                if (Array.isArray(item.key)) combinedKeys = combinedKeys.concat(item.key);
-                if (typeof item.key === 'string') combinedKeys.push(item.key);
+                combinedKeys = combinedKeys.concat(nk(item.keys));
+                combinedKeys = combinedKeys.concat(nk(item.keys2));
+                combinedKeys = combinedKeys.concat(nk(item.key));
                 if (combinedKeys.length === 0 && item.title) combinedKeys.push(item.title);
                 if (combinedKeys.length === 0 && item.name) combinedKeys.push(item.name);
                 if (combinedKeys.length === 0) combinedKeys.push('未命名');
@@ -3912,20 +4011,53 @@ ${extraContext.trim()}`;
                 const entry = newWb.entries[key];
                 if (!entry.uid) entry.uid = Date.now() + entryCount;
 
+                // 关键词归一化（兼容数组 / 逗号字符串 / 空值）
+                const normKeys = (v) => {
+                    if (Array.isArray(v)) return v.map(k => String(k).trim()).filter(Boolean);
+                    if (typeof v === 'string') return v.split(/[,，、;；]/).map(k => k.trim()).filter(Boolean);
+                    return [];
+                };
+
                 // 【核心容错】拦截处理旧版或其它工具导出的非标准字段
+                // ⚠️ 酒馆标准是 key / keysecondary（单数），工坊内部用 keys / secondary_keys
+                // 🀄 字符串形式必须走 normKeys 拆分，否则 "A，B、C" 会被当成一个关键词
                 let combinedKeys = [];
-                if (Array.isArray(entry.keys)) combinedKeys = combinedKeys.concat(entry.keys);
-                else if (typeof entry.keys === 'string') combinedKeys.push(entry.keys);
-                if (Array.isArray(entry.key)) combinedKeys = combinedKeys.concat(entry.key);
-                else if (typeof entry.key === 'string') combinedKeys.push(entry.key);
+                if (entry.keys !== undefined) combinedKeys = combinedKeys.concat(normKeys(entry.keys));
+                if (entry.key !== undefined) combinedKeys = combinedKeys.concat(normKeys(entry.key));
                 if (combinedKeys.length === 0 && entry.title) combinedKeys.push(entry.title);
                 if (combinedKeys.length === 0 && entry.name) combinedKeys.push(entry.name);
-                if (combinedKeys.length === 0) combinedKeys.push('未命名');
+                // ⚠️ 不要用「未命名」兜底关键词：酒馆会把它当成真实关键词去匹配，永远匹配不到。
+                //    保持空数组 → 酒馆判定为「无关键词条目不触发」，比假关键词更诚实。
 
                 entry.keys = combinedKeys; // 强制覆盖为安全的数组
+
+                // 🔑 补齐次级关键词（此前被整体丢弃 → 导入后过滤逻辑失效）
+                const secSrc = entry.secondary_keys !== undefined ? entry.secondary_keys : entry.keysecondary;
+                entry.secondary_keys = normKeys(secSrc);
+
+                // 🔑 补齐布尔/数值型触发字段（缺失时用酒馆默认值，避免 undefined 参与运算）
+                const boolFields = ['constant', 'vectorized', 'disable', 'excludeRecursion',
+                    'prevent_recursion', 'delay_until_recursion', 'case_sensitive',
+                    'match_whole_words', 'group_override', 'use_group_scoring'];
+                boolFields.forEach(f => { if (entry[f] === undefined) entry[f] = false; });
+
+                const numFields = {
+                    order: entryCount, position: 1, depth: 4, role: 0,
+                    selectiveLogic: 0, probability: 100, sticky: 0, cooldown: 0, delay: 0
+                };
+                Object.keys(numFields).forEach(f => {
+                    if (entry[f] === undefined || entry[f] === null) entry[f] = numFields[f];
+                    else entry[f] = parseInt(entry[f]);
+                });
+
+                // selective 与 secondary_keys 保持一致性：没有次级关键词就不该开过滤
+                entry.selective = entry.secondary_keys.length > 0;
+
                 // 补全其它可能缺失的参数
                 entry.content = entry.content || '';
-                entry.order = entry.order !== undefined ? entry.order : entryCount;
+                entry.comment = entry.comment || entry.name || '';
+                entry.group = entry.group || '';
+                entry.outlet_name = entry.outlet_name || '';
                 entryCount++;
             }
             finalizeImport(newWb, entryCount);
@@ -4112,15 +4244,19 @@ ${extraContext.trim()}`;
             container.innerHTML = entries.map(e => {
                 // ★ 优先使用条目名称 (comment/name) 作为显示标题，无名称时用第一个关键词兜底
                 const displayTitle = e.comment || e.name || (e.keys && e.keys[0]) || '未命名';
+                // ⚠️ 触发风险标记：无关键词又非常驻 = 永远不会被酒馆触发
+                const hasKeys = Array.isArray(e.keys) && e.keys.some(k => k && String(k).trim());
+                const risky = !e.disable && !e.constant && !hasKeys;
+                const riskyTip = risky ? ' title="⚠️ 该条目没有主关键词且未设常驻，导入酒馆后永远不会被触发"' : '';
                 return `
                 <div class="entry-item ${String(e.uid) === String(currentEntryUid) ? 'active' : ''}"
                      draggable="true" data-uid="${e.uid}" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)"
                      onclick="switchEntry('${e.uid}')">
                     <div class="info">
-                        <div class="title">${getEntryCategoryTag(e)}${highlightText(displayTitle, searchQuery.trim())} <span style="font-size:10px;color:var(--text-muted);font-weight:normal;">(序:${e.order})</span></div>
-                        <div class="keys">${highlightText((e.keys || []).join(', '), searchQuery.trim())}</div>
+                        <div class="title">${getEntryCategoryTag(e)}${highlightText(displayTitle, searchQuery.trim())} <span style="font-size:10px;color:var(--text-muted);font-weight:normal;">(序:${e.order})</span>${risky ? '<span style="color:#e0b020;font-size:11px;" title="无关键词且非常驻，酒馆不会触发">⚠️</span>' : ''}</div>
+                        <div class="keys">${risky ? '<span style="color:#e0b020;">（无触发关键词）</span>' : highlightText((e.keys || []).join(', '), searchQuery.trim())}</div>
                     </div>
-                    <div class="status">
+                    <div class="status"${riskyTip}>
                         <span class="status-dot ${e.constant ? 'blue' : 'green'}"></span>
                     </div>
                 </div>`;
@@ -4176,7 +4312,7 @@ ${extraContext.trim()}`;
                         <div style="display:flex; flex-direction:column; gap:6px;">
                             <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
                                 <div style="flex:2; min-width:170px;">
-                                    <label>主关键词 (逗号分隔，支持 /正则/)</label>
+                                    <label>主关键词 (逗号/中文逗号/顿号分隔，支持 /正则/)</label>
                                     <input id="entry-keys-input" class="input-styled" value="${(entry.keys || []).join(', ')}" oninput="saveCurrentEntryField('keys', this.value)">
                                 </div>
                                 <div style="flex:1; min-width:120px; max-width:170px;">
@@ -6637,6 +6773,201 @@ ${learned.sample}
         }
 
         // ============================================================
+        //  🔍 蒸馏失败诊断器：把「解析不出来」翻译成能看懂的原因
+        //  返回 { ok:boolean, reason, hint, snippet }
+        // ============================================================
+        function diagnoseDistillResponse(res) {
+          try {
+            return diagnoseDistillResponseCore(res);
+          } catch (e) {
+            console.error('[诊断器异常]', e);
+            return {
+                ok: false, stage: 'unknown',
+                reason: '诊断时发生内部错误：' + (e && e.message ? e.message : String(e)),
+                hint: '点「🔧 自动修复并重试」；若反复出现，请把模型返回内容的前 200 字反馈给开发者。',
+                detail: String(e && e.stack || ''),
+                snippet: String(res && res.text || '').slice(0, 400)
+            };
+          }
+        }
+
+        function diagnoseDistillResponseCore(res) {
+            // 1) 请求压根没成功
+            if (!res || res.ok === false) {
+                return {
+                    ok: false,
+                    stage: res && res.stage || 'network',
+                    reason: res && res.reason || '请求失败，没有拿到任何返回',
+                    hint: res && res.hint || '检查一下 API 配置。',
+                    detail: res && res.detail || ''
+                };
+            }
+
+            const raw = String(res.text || '').trim();
+
+            // 🧠 优先识别「思考型模型把预算吃光」——这是最高频且最反直觉的坑
+            if (res.starvedByThinking) {
+                return {
+                    ok: false, stage: 'thinking_starved',
+                    reason: `模型把 ${res.reasoningTokens} 个 token 全用在「思考」上了，正文只剩 ${raw.length} 个字符就被截断`,
+                    hint: '这不是提示词的问题！思考型模型的 max_tokens 是「思考+正文」总和。点「🔧 自动修复并重试」会自动把预算放大到 16384；若仍不行，请换用非思考型模型。',
+                    snippet: raw || '（正文为空，内容全在 reasoning_content 里）'
+                };
+            }
+
+            // 2) 拿到了内容，但完全为空
+            if (!raw) {
+                return {
+                    ok: false, stage: 'empty',
+                    reason: '模型返回了空内容（一个字都没有）',
+                    hint: '这个模型可能不支持当前任务，或思考时间过长被截断。换一个模型节点，或把「单块字数」调小。',
+                    snippet: ''
+                };
+            }
+
+            // 3) 命中了内容过滤 / 拒答
+            if (/^(抱歉|对不起|我无法|我不能|as an ai|I'm sorry|I cannot)/i.test(raw) || /无法协助|不能提供/.test(raw)) {
+                return {
+                    ok: false, stage: 'refusal',
+                    reason: '模型拒绝执行这个请求（返回了拒答内容）',
+                    hint: '换个模型试试；或把总控提示词里的措辞改得中性一些（避免涉及敏感内容）。',
+                    snippet: raw.slice(0, 400)
+                };
+            }
+
+            // 4) 输出被截断：不能用 lastIndexOf(']') 判断（字符串内容里的 ] 会误判），
+            //    改为扫描括号是否真正闭合（跳过字符串内部）。
+            // ⚠️ 注意：closedAt 必须在块外声明，否则块外访问会抛 ReferenceError 并被上层 catch 吞掉
+            const firstBracket = raw.indexOf('[');
+            let closedAt = -1;
+            if (firstBracket >= 0) {
+                let depth2 = 0, inStr2 = false, esc2 = false;
+                for (let i = firstBracket; i < raw.length; i++) {
+                    const c = raw[i];
+                    if (inStr2) {
+                        if (esc2) esc2 = false;
+                        else if (c === '\\') esc2 = true;
+                        else if (c === '"') inStr2 = false;
+                        continue;
+                    }
+                    if (c === '"') inStr2 = true;
+                    else if (c === '[') depth2++;
+                    else if (c === ']') {
+                        depth2--;
+                        if (depth2 === 0) { closedAt = i; break; }
+                    }
+                }
+                if (closedAt < 0) {
+                    return {
+                        ok: false, stage: 'truncated',
+                        reason: '模型输出被截断了（JSON 数组没有闭合）',
+                        hint: '输出长度超过了 max_tokens。把「📦单块字数」调小（如 1500），或在 API 配置里调大 max_tokens（建议 4096 以上）。',
+                        snippet: raw.slice(-400)
+                    };
+                }
+            }
+
+            // 5) 压根没有数组
+            if (firstBracket < 0) {
+                const looksLikeObject = raw.indexOf('{') >= 0;
+                return {
+                    ok: false, stage: 'not_array',
+                    reason: looksLikeObject
+                        ? '模型输出的是 JSON 对象 {…}，不是一个数组 […]，且没有可提取的数组'
+                        : '模型压根没输出 JSON，只是普通文字/解说',
+                    hint: '在「阶段一：总控提取提示词」里补一句："只输出 JSON 数组，不要任何解释文字、不要 Markdown 代码块"。',
+                    snippet: raw.slice(0, 400)
+                };
+            }
+
+            // 6) 数组已闭合：先判断能否正常解析（能解析 = 格式没问题，问题只在内容）
+            try {
+                const parsed = JSON.parse(raw.slice(firstBracket, closedAt + 1));
+                if (Array.isArray(parsed)) {
+                    if (parsed.length === 0) {
+                        return {
+                            ok: false, stage: 'empty_array',
+                            reason: '模型返回了一个空数组 []，说明它认为这段文本里没有可提取的设定',
+                            hint: '这不是格式错误。请检查：① 提取维度是否写得太窄；② 这段文本是不是纯对话/废话；③ 换一个理解力更强的模型。',
+                            snippet: raw.slice(0, 400)
+                        };
+                    }
+                    // ✅ JSON 完全合法且有内容：这是成功，调用方不应走失败分支
+                    return { ok: true, stage: 'ok', reason: '解析成功', hint: '', snippet: '', length: parsed.length };
+                }
+            } catch (e) { /* 交给下面统一处理 */ }
+
+            // 7) 括号平衡但内部 JSON 语法错
+            //    优先识别最常见的中文引号问题，给出精准提示
+            const hasCjkQuote = /[“”‘’「」『』]/.test(raw);
+            if (hasCjkQuote) {
+                return {
+                    ok: false, stage: 'invalid_json',
+                    reason: '模型用了中文引号（“ ” 「 」），JSON 只认英文双引号 " "',
+                    hint: '点「🔧 自动修复并重试」会自动在提示词里加上"必须使用英文双引号"的硬性规则，通常一次就解决。',
+                    snippet: raw.slice(0, 400)
+                };
+            }
+            const hasTrailingComma = /,\s*[}\]]/.test(raw);
+            if (hasTrailingComma) {
+                return {
+                    ok: false, stage: 'invalid_json',
+                    reason: 'JSON 里有"多余的逗号"（最后一个元素后面不该有逗号）',
+                    hint: '点「🔧 自动修复并重试」，会自动在提示词里禁止末尾逗号。',
+                    snippet: raw.slice(0, 400)
+                };
+            }
+            return {
+                ok: false, stage: 'invalid_json',
+                reason: '模型输出的内容看起来像数组，但 JSON 语法有错',
+                hint: '看下方片段定位具体位置。也可以点「🔧 自动修复并重试」，让提示词更严格。',
+                snippet: raw.slice(0, 400)
+            };
+        }
+
+        // 🪟 展示蒸馏失败诊断（替代原来只有一句话的 alert）
+        function showDistillError(title, diag, onRetry) {
+            const stageLabel = {
+                auth: '🔑 密钥问题',
+                http: '🌐 接口报错',
+                network: '📡 网络问题',
+                empty: '📭 空返回',
+                refusal: '🚫 模型拒答',
+                thinking_starved: '🧠 思考吃光了预算',
+                truncated: '✂️ 输出被截断',
+                not_array: '📄 格式不对',
+                empty_array: '🔍 没提取到内容',
+                invalid_json: '🧩 JSON 语法错误'
+            }[diag.stage] || '❓ 未知问题';
+
+            const bodyHTML = `
+                <div style="display:flex; flex-direction:column; gap:12px; font-size:13px; line-height:1.7;">
+                    <div style="background:var(--bg-tertiary); border-left:3px solid var(--red); border-radius:6px; padding:10px 12px;">
+                        <div style="font-weight:700; color:var(--red); margin-bottom:4px;">${escHtml(stageLabel)}</div>
+                        <div style="color:var(--text-primary);">${escHtml(diag.reason)}</div>
+                    </div>
+                    <div style="background:var(--bg-elevated); border-left:3px solid var(--accent); border-radius:6px; padding:10px 12px;">
+                        <div style="font-weight:700; color:var(--accent); margin-bottom:4px;">👉 你该怎么做</div>
+                        <div style="color:var(--text-primary);">${escHtml(diag.hint)}</div>
+                    </div>
+                    ${diag.detail ? `<details><summary style="cursor:pointer; color:var(--text-secondary); font-size:12px;">🔍 查看接口原始错误信息</summary>
+                        <pre style="white-space:pre-wrap; background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:6px; padding:8px; font-size:11px; max-height:160px; overflow:auto; margin-top:6px;">${escHtml(diag.detail)}</pre></details>` : ''}
+                    ${diag.snippet ? `<details><summary style="cursor:pointer; color:var(--text-secondary); font-size:12px;">📄 查看模型实际返回的内容（前 400 字）</summary>
+                        <pre style="white-space:pre-wrap; background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:6px; padding:8px; font-size:11px; max-height:200px; overflow:auto; margin-top:6px;">${escHtml(diag.snippet)}</pre></details>` : ''}
+                    <div style="font-size:12px; color:var(--text-secondary); border-top:1px dashed var(--border-color); padding-top:8px;">
+                        💡 小白提示：先点下面「🔧 自动修复并重试」，多数情况能直接解决；不行再按上面建议手动调整。
+                    </div>
+                </div>`;
+
+            showModal(title, {
+                bodyHTML,
+                confirmText: '🔧 自动修复并重试',
+                cancelText: '关闭',
+                onConfirm: () => { closeModal(); if (typeof onRetry === 'function') onRetry(); }
+            });
+        }
+
+        // ============================================================
         //  YAML 行级状态机解析：将 YAML 风格的 worldbook_updates 转成标准对象
         //  支持 - action: / title: / keys: 列表 / content: 跨行块
         // ============================================================
@@ -6663,7 +6994,7 @@ ${learned.sample}
                         try { const arr = JSON.parse(value); if (Array.isArray(arr)) obj.keys = arr.map(String); else obj.keys = [value]; }
                         catch (e) { obj.keys = [value]; }
                     } else {
-                        obj.keys = value.split(',').map(s => s.trim()).filter(Boolean);
+                        obj.keys = value.split(/[,，、;；]/).map(s => s.trim()).filter(Boolean);
                     }
                 } else if (key === 'content') obj.content = value;
                 else obj[key] = value;
@@ -6750,6 +7081,14 @@ ${learned.sample}
             // 每次打开前重置确认按钮显示（防止上次 hideConfirm 遗留隐藏状态）
             const confirmBtnReset = document.getElementById('modalConfirmBtn');
             if (confirmBtnReset) confirmBtnReset.style.display = '';
+            // ♻️ 重置按钮回调：自定义弹窗会覆盖 onclick，若不清空会污染后续弹窗
+            if (confirmBtnReset) confirmBtnReset.onclick = function () { handleModalConfirm(); };
+            const cancelReset = document.querySelector('.modal-footer .btn:not(#modalConfirmBtn)');
+            if (cancelReset) {
+                cancelReset.textContent = '取消';
+                cancelReset.onclick = function () { closeModal(); };
+            }
+            modalConfirmCallback = null;
             // 🚀 通用自定义弹窗：若第二个参数传入 { bodyHTML, confirmText, onConfirm }，直接按自定义内容渲染
             if (extra && typeof extra === 'object' && typeof extra.bodyHTML === 'string') {
                 document.getElementById('modalBody').innerHTML = extra.bodyHTML;
@@ -7266,29 +7605,81 @@ ${learned.sample}
                 }, 100);
 
                 // 🚀 集群专用的隔离请求单元（避免干扰聊天核心逻辑，同时写入调用日志便于追溯）
-                async function fetchDistillChunk(apiId, promptStr) {
+                // 📌 返回结构：{ ok:true, text, reasoning, finishReason, usage, starvedByThinking }
+                //           | { ok:false, reason, hint, raw }
+                //    reason 用大白话说明「哪一环断了」，hint 给出「你该做什么」
+                //    overrideMaxTokens：可选，用于逐个放大预算重试
+                //    taskType：'map'（分块提取）| 'reduce'（合并汇总）—— Reduce 需要更大预算
+                async function fetchDistillChunk(apiId, promptStr, overrideMaxTokens, taskType) {
                     const config = apiConfigs[apiId];
-                    if (!config || !config.api_key) return null;
+                    if (!config) {
+                        return { ok: false, reason: '找不到这个 API 配置', hint: '请在「⚙️ API 配置管理」里重新添加一个模型节点。' };
+                    }
+                    if (!config.api_key) {
+                        return {
+                            ok: false, stage: 'auth',
+                            reason: `节点「${config.name}」没有填写 API Key`,
+                            hint: '打开「⚙️ API 配置管理」，给这个节点填上 Key 后再试。'
+                        };
+                    }
                     const startTime = Date.now();
                     try {
                         let url = config.api_base.endsWith('/') ? config.api_base.slice(0, -1) : config.api_base;
                         const payload = { model: config.model, messages: [{ role: 'user', content: promptStr }] };
-                        if (config.max_tokens) payload.max_tokens = config.max_tokens;
+                        // 🧠 思考型模型（deepseek-v4.x / glm-5.x / kimi 等）的 max_tokens 是「思考+正文」总和。
+                        //    实测：3000 字分块的深度蒸馏，思考常吃掉 8000~12000 token，
+                        //    所以默认预算要给足：Map 16384 / Reduce 24576。
+                        //    太小会导致「思考耗尽 → 正文 0 字符」的假性 JSON 错误（真实长文本必踩）。
+                        const defaultBudget = taskType === 'reduce' ? 24576 : 16384;
+                        const baseBudget = overrideMaxTokens
+                            ? Math.max(parseInt(overrideMaxTokens), defaultBudget)
+                            : Math.max(parseInt(config.max_tokens) || 0, defaultBudget);
+                        payload.max_tokens = baseBudget;
                         if (config.temperature !== undefined) payload.temperature = config.temperature;
 
+                        // ⏱️ 蒸馏请求的超时要单独放宽：
+                        //    思考型模型 + 大 token 预算时，单次请求 2~5 分钟很常见，
+                        //    用全局默认 60s 必然超时（Reduce 阶段尤其明显）。
+                        const timeoutMs = taskType === 'reduce' ? 420000 : 300000;
                         const response = await fetchWithRetry(`${url}/chat/completions`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.api_key}` },
                             body: JSON.stringify(payload)
-                        });
-                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        }, { timeoutMs, retries: 0 });
+                        if (!response.ok) {
+                            // 尽量读出服务端返回的错误说明，翻译成人话
+                            let detail = '';
+                            try {
+                                const errBody = await response.json();
+                                detail = errBody?.error?.message || errBody?.message || JSON.stringify(errBody).slice(0, 300);
+                            } catch (e) { /* 响应体不是 JSON，忽略 */ }
+
+                            const status = response.status;
+                            let reason = `接口返回 HTTP ${status}`;
+                            let hint = '请检查 API 地址 / Key / 余额。';
+                            if (status === 401) { reason = 'API Key 无效或已过期（401 未授权）'; hint = '打开「⚙️ API 配置管理」重新粘贴 Key。'; }
+                            else if (status === 402) { reason = '账户余额不足（402 需要付费额度）'; hint = '到该服务商后台充值，或换一个免费/可用节点。'; }
+                            else if (status === 403) { reason = 'Key 没有权限访问这个模型（403 禁止访问）'; hint = '确认这个 Key 支持该模型名，或换模型。'; }
+                            else if (status === 404) { reason = '模型名或接口地址不存在（404）'; hint = '检查「模型名」是否拼写正确（例如 deepseek-v4-flash）。'; }
+                            else if (status === 429) { reason = '请求太频繁 / 超出限额（429 限流）'; hint = '把「单节点线程」调成 1，或减少勾选的并发节点，等一会儿再试。'; }
+                            else if (status >= 500) { reason = `服务商服务器故障（${status}）`; hint = '不是你的问题，稍后重试或换一个节点。'; }
+
+                            return { ok: false, stage: 'http', status, reason, hint, detail };
+                        }
                         const data = await response.json();
+                        const choice = data.choices?.[0] || {};
+                        const msg = choice.message || {};
+                        const content = msg.content || '';
+                        const reasoning = msg.reasoning_content || '';
+                        const completeness = choice.finish_reason || '';
+                        const usage = data.usage || {};
+                        const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens || 0;
 
                         apiLogs.unshift({
                             time: new Date().toLocaleString('zh-CN', { hour12: false }),
                             model: config.model,
                             action: '集群蒸馏',
-                            tokens: data.usage?.total_tokens || 0,
+                            tokens: usage.total_tokens || 0,
                             durationMs: Date.now() - startTime,
                             status: '成功',
                             detail: `集群节点 [${config.name}] 成功提取分块`
@@ -7296,7 +7687,16 @@ ${learned.sample}
                         if (apiLogs.length > 50) apiLogs.pop();
                         saveToLocal();
 
-                        return data.choices[0].message.content;
+                        return {
+                            ok: true,
+                            text: content,
+                            reasoning: reasoning,
+                            finishReason: completeness,
+                            usage,
+                            reasoningTokens,
+                            // 🧠 思考型模型把 max_tokens 都花在思考上，导致正文被挤掉
+                            starvedByThinking: completeness === 'length' && reasoningTokens > 0 && content.length < 200
+                        };
                     } catch (err) {
                         console.warn(`节点 [${config.name}] 故障:`, err);
                         apiLogs.unshift({
@@ -7310,7 +7710,22 @@ ${learned.sample}
                         });
                         if (apiLogs.length > 50) apiLogs.pop();
                         saveToLocal();
-                        return null;
+
+                        // 网络层错误翻译成人话
+                        const msg = String(err && err.message || err);
+                        let reason = '网络请求失败';
+                        let hint = '检查网络连接后重试。';
+                        if (/abort|timeout|超时/i.test(msg)) {
+                            reason = '请求超时（模型响应太慢）';
+                            hint = '把「📦单块字数」改小（比如 1500），或换一个更快的模型节点。';
+                        } else if (/Failed to fetch|NetworkError|load failed/i.test(msg)) {
+                            reason = '无法连接到 API 地址（网络不通或被浏览器拦截）';
+                            hint = '确认「API 地址」填写正确且以 /v1 结尾；国内直连不了的服务需要代理。';
+                        } else if (/CORS/i.test(msg)) {
+                            reason = '浏览器跨域拦截（CORS）';
+                            hint = '换一个允许浏览器直连的服务商，或在「API 配置」里使用支持跨域的地址。';
+                        }
+                        return { ok: false, stage: 'network', reason, hint, detail: msg };
                     }
                 }
 
@@ -7373,9 +7788,49 @@ ${learned.sample}
                         if (finalMsg) finalMsg.textContent = '🧪 正在对【第一块文本】进行试跑预览...';
                         realtimeLog.innerHTML = `<div style="color:var(--accent);">🧪 试跑启动：正在将第 1/${chunks.length} 块文本发往大模型...</div>`;
 
+                        // 🔧 自动修复并重试：根据失败类型做针对性修复
+                        const autoFixAndRetry = (diag) => {
+                            window._distillAutoFixCount = (window._distillAutoFixCount || 0) + 1;
+                            window._distillRetryBudget = window._distillRetryBudget || 0;
+                            const chunkEl = document.getElementById('distillChunkSize');
+                            const masterEl = document.getElementById('distillMasterPrompt');
+                            const reduceEl = document.getElementById('distillReducePrompt');
+                            const stage = diag && diag.stage;
+
+                            // 🧠 思考耗尽 / 截断 → 关键是放大 token 预算，而不是把分块切得更小
+                            if (stage === 'thinking_starved' || stage === 'truncated') {
+                                const budget = Math.min(32768, (window._distillRetryBudget || 8192) * 2);
+                                window._distillRetryBudget = budget;
+                                const chunkEl2 = document.getElementById('distillChunkSize');
+                                if (chunkEl2 && stage === 'truncated') {
+                                    const cur = parseInt(chunkEl2.value) || 3000;
+                                    chunkEl2.value = Math.max(1000, Math.floor(cur / 2));
+                                }
+                                showToast(`🔧 已把 token 预算放大到 ${budget}，正在重试…`);
+                                setTimeout(() => window.runDistillTask(true), 400);
+                                return;
+                            }
+
+                            // 📄 格式类问题 → 强化提示词
+                            const hardRule = '\n\n【硬性输出规则，必须遵守】\n1. 只输出一个 JSON 数组，不要任何解释、前言、后记。\n2. 不要用 ``` 代码块包裹。\n3. 所有字符串必须用英文双引号，禁止使用中文引号。\n4. 数组元素之间用英文逗号分隔，最后一个元素后面不要加逗号。\n5. 如果该片段没有任何可提取的设定，输出空数组 []。';
+                            if (masterEl && !masterEl.value.includes('【硬性输出规则')) masterEl.value += hardRule;
+                            if (reduceEl && !reduceEl.value.includes('【硬性输出规则')) reduceEl.value += hardRule;
+                            if (chunkEl) {
+                                const cur = parseInt(chunkEl.value) || 3000;
+                                chunkEl.value = Math.max(1000, Math.floor(cur / 2));
+                                showToast(`🔧 已把单块字数从 ${cur} 调到 ${chunkEl.value}，并强化了 JSON 指令`);
+                            } else {
+                                showToast('🔧 已强化 JSON 输出指令，正在重试…');
+                            }
+                            // 略微降级：单线程，减少限流
+                            const threadsEl = document.getElementById('distillThreads');
+                            if (threadsEl) threadsEl.value = 1;
+                            setTimeout(() => window.runDistillTask(true), 400);
+                        };
+
                         const targetApi = selectedApis[0];
-                        const result = await fetchDistillChunk(targetApi, mapPrompt + chunks[0]);
-                        const extracted = extractJsonArray(result);
+                        const res = await fetchDistillChunk(targetApi, mapPrompt + chunks[0], window._distillRetryBudget);
+                        const extracted = res && res.ok ? extractJsonArray(res.text) : null;
 
                         if (extracted && extracted.length > 0) {
                             outputArea.value = JSON.stringify(extracted, null, 2);
@@ -7383,14 +7838,18 @@ ${learned.sample}
                             if (finalMsg) finalMsg.textContent = '🧪 预览完成！请查阅上方结果。满意可点击右侧继续：';
                             if (continueBtn) continueBtn.style.display = 'inline-block';
                             window._distillPreviewData = extracted; // 保存第一块试跑的数据
+                            window._distillAutoFixCount = 0;
                             showToast('试跑成功！请检查预览效果。');
                         } else {
-                            realtimeLog.innerHTML += `<div style="color:var(--red);">❌ 试跑解析失败：未能提取到有效的 JSON，请修改提示词或维度后重试。</div>`;
+                            const diag = diagnoseDistillResponse(res);
+                            if (res && res.ok) diag.snippet = diag.snippet || String(res.text || '').slice(0, 400);
+                            realtimeLog.innerHTML += `<div style="color:var(--red);">❌ ${escHtml(diag.reason)}</div>`;
+                            if (diag.hint) realtimeLog.innerHTML += `<div style="color:var(--yellow);">👉 ${escHtml(diag.hint)}</div>`;
                             // 恢复输入区，方便用户当场修改提示词/维度/分块大小后重新试跑
                             inputArea.style.display = 'block';
                             resultArea.style.display = 'none';
                             if (finalMsg) finalMsg.textContent = '🧪 预览试跑模式...';
-                            alert("试跑预览失败：大模型未输出规范的 JSON 数组。您可以微调提示词后再试。");
+                            showDistillError('⚠️ 蒸馏失败：这是具体原因', diag, autoFixAndRetry);
                         }
 
                         if (confirmBtn) confirmBtn.disabled = false;
@@ -7404,6 +7863,7 @@ ${learned.sample}
                     const totalChunks = chunks.length;
                     let completedCount = startChunkIndex;
                     let allExtractedData = [...previousExtractedData];
+                    const failedChunks = [];   // 🩺 记录失败分块及原因，结束时汇总展示
 
                     progress.style.display = 'block';
                     progressText.style.display = 'inline-block';
@@ -7419,8 +7879,8 @@ ${learned.sample}
                             if (!task) break;
                             if (confirmBtn) confirmBtn.textContent = `⚗️ 正在全量蒸馏 (${completedCount}/${totalChunks})...`;
 
-                            const result = await fetchDistillChunk(apiId, mapPrompt + task.text);
-                            const extracted = extractJsonArray(result);
+                            const res = await fetchDistillChunk(apiId, mapPrompt + task.text, task.budget, 'map');
+                            const extracted = res && res.ok ? extractJsonArray(res.text) : null;
 
                             if (extracted && extracted.length > 0) {
                                 allExtractedData.push(...extracted);
@@ -7432,13 +7892,28 @@ ${learned.sample}
                                 realtimeLog.scrollTop = realtimeLog.scrollHeight;
                             } else {
                                 task.retries++;
+                                const diag = diagnoseDistillResponse(res);
+                                task.lastDiag = diag;
+
+                                // 🧠 关键：思考耗尽 / 截断时，必须「放大预算」再重试，
+                                //    否则同样的 max_tokens 重试多少次都还是失败（真实长文本必踩）
+                                const isBudgetIssue = diag.stage === 'thinking_starved' || diag.stage === 'truncated';
+                                if (isBudgetIssue) {
+                                    task.budget = Math.min(32768, (task.budget || 8192) * 2);
+                                }
+
                                 if (task.retries < 3) {
-                                    realtimeLog.innerHTML += `<div style="color:var(--red);">[${workerName}] 第 ${task.originalIndex + 1} 块重试...</div>`;
+                                    const extra = isBudgetIssue ? `（预算提升到 ${task.budget}）` : '';
+                                    realtimeLog.innerHTML += `<div style="color:var(--red);">[${workerName}] 第 ${task.originalIndex + 1} 块失败：${escHtml(diag.reason)}${extra}，重试中…</div>`;
                                     taskQueue.push(task);
                                     await new Promise(r => setTimeout(r, 2000));
                                 } else {
                                     completedCount++;
                                     progress.value = completedCount;
+                                    progressText.textContent = `进度: ${completedCount}/${totalChunks}`;
+                                    failedChunks.push({ index: task.originalIndex + 1, diag });
+                                    realtimeLog.innerHTML += `<div style="color:var(--red);">[${workerName}] 第 ${task.originalIndex + 1} 块放弃：${escHtml(diag.reason)}</div>`;
+                                    realtimeLog.scrollTop = realtimeLog.scrollHeight;
                                 }
                             }
                             await new Promise(r => setTimeout(r, 800));
@@ -7465,14 +7940,18 @@ ${learned.sample}
                             realtimeLog.scrollTop = realtimeLog.scrollHeight;
 
                             // 针对大量数据，切分为小批次让集群归约合并，防止 Token 爆炸
+                            // ⚠️ 批次太小（旧值 5000 字）会产生大量 Reduce 请求，每个都要跑 2~5 分钟，
+                            //    整体耗时爆炸且更容易连续超时。改为按「条数 + 字符」双重切分。
                             const reducePromptStr = document.getElementById('distillReducePrompt').value.trim();
                             const reduceBatches = [];
                             let currentBatch = [];
                             let currentStrLen = 0;
-                            // 按大致字符长度（预估 5000 字一批）拆分 Reduce 任务
+                            const MAX_BATCH_CHARS = 15000;   // 单批约 1.5 万字
+                            const MAX_BATCH_ITEMS = 40;      // 单批最多 40 个碎片
                             allExtractedData.forEach(item => {
                                 const itemStr = JSON.stringify(item);
-                                if (currentStrLen + itemStr.length > 5000 && currentBatch.length > 0) {
+                                if (currentBatch.length > 0 &&
+                                    (currentStrLen + itemStr.length > MAX_BATCH_CHARS || currentBatch.length >= MAX_BATCH_ITEMS)) {
                                     reduceBatches.push(currentBatch);
                                     currentBatch = [];
                                     currentStrLen = 0;
@@ -7494,13 +7973,23 @@ ${learned.sample}
                                 realtimeLog.innerHTML += `<div>分配 Reduce 任务 ${i + 1}/${reduceBatches.length} 给 [${apiConfigs[targetApiId].name}]</div>`;
                                 realtimeLog.scrollTop = realtimeLog.scrollHeight;
 
-                                const reduceResult = await fetchDistillChunk(targetApiId, batchPrompt);
-                                const reducedArray = extractJsonArray(reduceResult);
+                                const reduceRes = await fetchDistillChunk(targetApiId, batchPrompt, window._distillRetryBudget, 'reduce');
+                                let reducedArray = reduceRes && reduceRes.ok ? extractJsonArray(reduceRes.text) : null;
+
+                                // 🧠 Reduce 遇到思考耗尽/截断时，自动放大预算再试一次
+                                if (!reducedArray && reduceRes && reduceRes.starvedByThinking) {
+                                    const bigger = Math.min(32768, (parseInt(window._distillRetryBudget) || 16384) * 2);
+                                    realtimeLog.innerHTML += `<div style="color:var(--yellow);">🔧 Reduce 任务 ${i + 1} 思考耗尽，预算放大到 ${bigger} 重试…</div>`;
+                                    const retryRes = await fetchDistillChunk(targetApiId, batchPrompt, bigger, 'reduce');
+                                    if (retryRes && retryRes.ok) reducedArray = extractJsonArray(retryRes.text);
+                                }
 
                                 if (reducedArray && reducedArray.length > 0) {
                                     finalReducedData.push(...reducedArray);
                                 } else {
                                     // 若 Reduce 失败，保留原始碎片不至于丢数据
+                                    const rdiag = diagnoseDistillResponse(reduceRes);
+                                    realtimeLog.innerHTML += `<div style="color:var(--yellow);">⚠️ Reduce 任务 ${i + 1} 失败（${escHtml(rdiag.reason)}），已保留原始碎片不失数据</div>`;
                                     finalReducedData.push(...reduceBatches[i]);
                                 }
                                 await new Promise(r => setTimeout(r, 1000));
@@ -7513,10 +8002,46 @@ ${learned.sample}
                         if (finalMsg) finalMsg.textContent = `✅ 全量蒸馏与汇总完成！共生成 ${allExtractedData.length} 个终极条目：`;
                         if (confirmBtn) confirmBtn.textContent = '📥 确认导入工作台';
                         showToast('全量蒸馏圆满完成！');
+
+                        // 🩺 有失败分块时，汇总展示原因（不打断已成功的部分）
+                        if (failedChunks.length > 0) {
+                            const first = failedChunks[0].diag;
+                            const list = failedChunks.slice(0, 10).map(f => `第 ${f.index} 块：${f.diag.reason}`).join('\n');
+                            showDistillError(`⚠️ 有 ${failedChunks.length} 块没能提取成功`, {
+                                stage: first.stage,
+                                reason: `共 ${failedChunks.length} 个分块被跳过。最常见原因：${first.reason}`,
+                                hint: `已成功的 ${allExtractedData.length} 条不受影响。你可以先导入它们，再对失败部分单独重跑。\n\n${first.hint}`,
+                                detail: list
+                            }, () => {
+                                const chunkEl = document.getElementById('distillChunkSize');
+                                if (chunkEl) chunkEl.value = Math.max(1000, Math.floor((parseInt(chunkEl.value) || 3000) / 2));
+                                const threadsEl = document.getElementById('distillThreads');
+                                if (threadsEl) threadsEl.value = 1;
+                                showToast('🔧 已调小分块并降为单线程，请重新点击蒸馏');
+                            });
+                        }
                     } else {
-                        alert("蒸馏失败：未能提取到任何有效数据。");
+                        // 全部失败：给出可诊断原因
+                        const diag = failedChunks.length > 0 ? failedChunks[0].diag : {
+                            stage: 'unknown',
+                            reason: '所有分块都没有提取到内容',
+                            hint: '可能是模型能力不足或文本里没有设定信息。换一个更强的模型节点，或检查文本内容。'
+                        };
+                        const diagSummary = failedChunks.length > 0
+                            ? Object.assign({}, diag, {
+                                reason: `全部 ${failedChunks.length} 个分块都失败了。典型原因：${diag.reason}`,
+                                detail: failedChunks.slice(0, 10).map(f => `第 ${f.index} 块：${f.diag.reason}`).join('\n')
+                            })
+                            : diag;
                         inputArea.style.display = 'block';
                         resultArea.style.display = 'none';
+                        showDistillError('⚠️ 蒸馏失败：这是具体原因', diagSummary, () => {
+                            const chunkEl = document.getElementById('distillChunkSize');
+                            if (chunkEl) chunkEl.value = Math.max(1000, Math.floor((parseInt(chunkEl.value) || 3000) / 2));
+                            const threadsEl = document.getElementById('distillThreads');
+                            if (threadsEl) threadsEl.value = 1;
+                            showToast('🔧 已调小分块并降为单线程，请重新点击蒸馏');
+                        });
                     }
 
                     if (confirmBtn) confirmBtn.disabled = false;
@@ -7545,9 +8070,20 @@ ${learned.sample}
                             parsed.forEach(item => {
                                 if (item.keys && item.content) {
                                     const newUid = Date.now() + '_' + Math.floor(Math.random() * 10000);
-                                    wb.entries[newUid] = {
-                                        uid: newUid, keys: Array.isArray(item.keys) ? item.keys : [item.keys], content: item.content, constant: false, disable: false, order: typeof item.order === 'number' ? item.order : 100, depth: 4, position: 1, selectiveLogic: 0, excludeRecursion: false, probability: 100, role: 0, tag: item.tag || 'auto'
-                                    };
+                                    const keyArr = Array.isArray(item.keys) ? item.keys : [item.keys];
+                                    // ⚠️ comment 必须写入：否则酒馆里条目名是空白，无法管理
+                                    const title = (item.name && String(item.name).trim())
+                                        || (item.comment && String(item.comment).trim())
+                                        || (keyArr[0] ? String(keyArr[0]).trim() : '未命名条目');
+                                    wb.entries[newUid] = Object.assign(createNewEntry(newUid), {
+                                        uid: newUid,
+                                        comment: title,
+                                        name: title,
+                                        keys: keyArr,
+                                        content: item.content,
+                                        order: typeof item.order === 'number' ? item.order : 100,
+                                        tag: item.tag || 'auto'
+                                    });
                                     added++;
                                 }
                             });
